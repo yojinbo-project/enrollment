@@ -94,6 +94,17 @@
           transparent calc(50% + 0.5px)
         ) !important;
       }
+      .pdf-page .attendance-table {
+        table-layout: fixed;
+      }
+      .pdf-page .attendance-table th,
+      .pdf-page .attendance-table td {
+        width: 5.8%;
+      }
+      .pdf-page .attendance-table .attendance-label-col,
+      .pdf-page .attendance-table .attendance-total-col {
+        width: 15.2%;
+      }
 
       /* Crucial: Grid-based rendering wrapper for perfect scaling centering */
       .preview-wrapper {
@@ -843,7 +854,7 @@
               <!-- The target A4 sheet of document -->
               <div
                 id="school-cert-page"
-                class="pdf-page serif-text p-[50px] flex flex-col justify-between"
+                class="pdf-page serif-text px-[76px] py-[50px] flex flex-col justify-between"
                 data-page="0"
               >
                 <!-- Master Document Container - Allows dynamic Auto-Density fitting -->
@@ -946,12 +957,12 @@
                           出席、欠席状況
                         </div>
                         <table
-                          class="w-full text-center border-collapse text-xs"
+                          class="attendance-table w-full text-center border-collapse text-xs"
                         >
                           <thead>
                             <tr>
                               <th
-                                class="border border-slate-400 p-1 font-bold w-16 whitespace-nowrap"
+                                class="attendance-label-col border border-slate-400 p-1 font-bold whitespace-nowrap"
                               >
                                 区分
                               </th>
@@ -1016,7 +1027,7 @@
                                 3
                               </th>
                               <th
-                                class="border border-slate-400 p-1 font-bold w-16 whitespace-nowrap"
+                                class="attendance-total-col border border-slate-400 p-1 font-bold whitespace-nowrap"
                               >
                                 計
                               </th>
@@ -1025,7 +1036,7 @@
                           <tbody>
                             <tr>
                               <td
-                                class="border border-slate-400 p-1.5 font-bold whitespace-nowrap"
+                                class="attendance-label-col border border-slate-400 p-1.5 font-bold whitespace-nowrap"
                               >
                                 出席日数
                               </td>
@@ -1103,14 +1114,14 @@
                               </td>
                               <td
                                 id="view-att-total"
-                                class="border border-slate-400 p-1 font-bold"
+                                class="attendance-total-col border border-slate-400 p-1 font-bold"
                               >
                                 0
                               </td>
                             </tr>
                             <tr>
                               <td
-                                class="border border-slate-400 p-1.5 font-bold whitespace-nowrap"
+                                class="attendance-label-col border border-slate-400 p-1.5 font-bold whitespace-nowrap"
                               >
                                 欠席日数
                               </td>
@@ -1188,7 +1199,7 @@
                               </td>
                               <td
                                 id="view-abs-total"
-                                class="border border-slate-400 p-1 font-bold"
+                                class="attendance-total-col border border-slate-400 p-1 font-bold"
                               >
                                 0
                               </td>
