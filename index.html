@@ -1876,6 +1876,7 @@
                   state.schoolAddress = targetSch.address;
                   state.schoolPhone = targetSch.phone;
                   state.schoolFax = targetSch.fax;
+                  state.principalName = targetSch.principal || "";
                   syncStateToForm();
                   updatePreview();
                   setSchoolInfoEditing(false);
