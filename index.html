@@ -245,7 +245,7 @@
           class="p-3 bg-white border-b border-slate-200 flex flex-col gap-2 shadow-sm"
         >
           <div class="flex items-center gap-1">
-            <!-- PDF Generation & Code controls -->
+            <!-- PDF Generation control -->
             <button
               id="btn-download"
               class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm"
@@ -253,32 +253,6 @@
               <i data-lucide="download" class="w-3.5 h-3.5"></i>
               <span id="downloadBtnText">PDF保存</span>
             </button>
-            <button
-              id="btn-copy-code"
-              class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all"
-              title="最新状態のソースコードをコピー"
-            >
-              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-            </button>
-            <button
-              id="btn-open-newtab"
-              class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all"
-              title="別タブで独立起動"
-            >
-              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-            </button>
-            <label
-              class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer"
-              title="PDFまたはHTMLをドロップして状態復元"
-            >
-              <i data-lucide="upload" class="w-3.5 h-3.5"></i>
-              <input
-                type="file"
-                id="btn-restore-upload"
-                accept=".pdf,.html"
-                class="hidden"
-              />
-            </label>
           </div>
           <!-- Mini Notifications Inline Info -->
           <div
@@ -289,7 +263,7 @@
               data-lucide="check-circle"
               class="w-3 h-3 text-emerald-600 flex-shrink-0"
             ></i>
-            <span id="notification-message">コピー完了しました！</span>
+            <span id="notification-message">完了しました</span>
           </div>
         </div>
 
@@ -334,6 +308,14 @@
                 >
                   <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                   <span>編集</span>
+                </button>
+                <button
+                  id="btn-save-school-default"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+                  title="現在の学校設定を次回起動時の既定値として保存"
+                >
+                  <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+                  <span>既定保存</span>
                 </button>
                 <button
                   id="btn-save-school-info"
@@ -1307,6 +1289,7 @@
         let schoolCsvFileHandle = null;
         let schoolCsvLoaded = false;
         let isSchoolInfoEditing = false;
+        const SCHOOL_DEFAULT_STORAGE_KEY = "enrollment.schoolDefault.v1";
 
         // Default Sheet Dimensions
         const PAGE_SIZES = { w: 794, h: 1123, mmW: 210, mmH: 297 }; // A4
@@ -1454,6 +1437,62 @@
           state.schoolPhone = "";
           state.schoolFax = "";
           state.principalName = "";
+        }
+
+        function getSchoolDefaultState() {
+          return {
+            schoolPreset: state.schoolPreset,
+            schoolName: state.schoolName,
+            schoolAddress: state.schoolAddress,
+            schoolPhone: state.schoolPhone,
+            schoolFax: state.schoolFax,
+            principalName: state.principalName,
+          };
+        }
+
+        function normalizeSchoolPresetForCurrentDatabase(preset) {
+          if (preset === "custom") return "custom";
+          return SCHOOL_DATABASE.some((sch) => sch.id === preset)
+            ? preset
+            : "custom";
+        }
+
+        function loadSchoolDefaultState() {
+          try {
+            const raw = localStorage.getItem(SCHOOL_DEFAULT_STORAGE_KEY);
+            if (!raw) return false;
+
+            const saved = JSON.parse(raw);
+            state = {
+              ...state,
+              schoolPreset: normalizeSchoolPresetForCurrentDatabase(
+                saved.schoolPreset || "custom",
+              ),
+              schoolName: saved.schoolName || "",
+              schoolAddress: saved.schoolAddress || "",
+              schoolPhone: saved.schoolPhone || "",
+              schoolFax: saved.schoolFax || "",
+              principalName: saved.principalName || "",
+            };
+            return true;
+          } catch (err) {
+            console.warn("学校設定の既定値読み込みに失敗しました", err);
+            return false;
+          }
+        }
+
+        function saveSchoolDefaultState() {
+          syncFormToState();
+          try {
+            localStorage.setItem(
+              SCHOOL_DEFAULT_STORAGE_KEY,
+              JSON.stringify(getSchoolDefaultState()),
+            );
+            showNotification("現在の学校設定を次回起動時の既定値として保存しました");
+          } catch (err) {
+            console.error("学校設定の既定値保存に失敗しました", err);
+            showNotification("学校設定の既定値保存に失敗しました", true);
+          }
         }
 
         async function requestSchoolCsvWriteHandle() {
@@ -1636,6 +1675,7 @@
         // Initialize App
         async function init() {
           await loadSchoolDatabaseFromCsv();
+          loadSchoolDefaultState();
           // Apply initial state if reconstruction payload exists
           const sessionPayload = sessionStorage.getItem(
             "__MAJIN_PDF_RESTORE__",
@@ -1904,6 +1944,9 @@
           document
             .getElementById("btn-save-school-info")
             .addEventListener("click", saveSchoolInfoToCsv);
+          document
+            .getElementById("btn-save-school-default")
+            .addEventListener("click", saveSchoolDefaultState);
 
           // Zoom control attachments
           document
@@ -1926,17 +1969,6 @@
           document
             .getElementById("btn-download")
             .addEventListener("click", downloadPDF);
-          document
-            .getElementById("btn-copy-code")
-            .addEventListener("click", copyCleanSourceToClipboard);
-          document
-            .getElementById("btn-open-newtab")
-            .addEventListener("click", openCleanSourceInNewTab);
-
-          // Reconstructive Upload handlers
-          document
-            .getElementById("btn-restore-upload")
-            .addEventListener("change", handleRestoreUpload);
 
           window.addEventListener("resize", () => {
             adjustZoomToFit();
