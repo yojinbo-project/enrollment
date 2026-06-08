@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>まじん式PDF v1 — 在学証明書ジェネレーター</title>
+    <title>在学証明書ジェネレーター</title>
 
     <!-- Fonts (Required: link tags with crossorigin="anonymous" to prevent CORS issues in html-to-image) -->
     <link
@@ -82,18 +82,18 @@
       .pdf-page [class*="decoration-slate-"] {
         text-decoration-color: #000000 !important;
       }
-        .pdf-page [class*="shadow"] {
-            box-shadow: none !important;
-        }
-        .pdf-page .attendance-disabled-cell {
-            background-image: linear-gradient(
-                to bottom right,
-                transparent calc(50% - 0.5px),
-                #000000 calc(50% - 0.5px),
-                #000000 calc(50% + 0.5px),
-                transparent calc(50% + 0.5px)
-            ) !important;
-        }
+      .pdf-page [class*="shadow"] {
+        box-shadow: none !important;
+      }
+      .pdf-page .attendance-disabled-cell {
+        background-image: linear-gradient(
+          to bottom right,
+          transparent calc(50% - 0.5px),
+          #000000 calc(50% - 0.5px),
+          #000000 calc(50% + 0.5px),
+          transparent calc(50% + 0.5px)
+        ) !important;
+      }
 
       /* Crucial: Grid-based rendering wrapper for perfect scaling centering */
       .preview-wrapper {
@@ -308,6 +308,85 @@
                 <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
                 <span>学校情報.csvを読み込み</span>
               </button>
+            </div>
+          </div>
+
+          <!-- Section: School Metadata -->
+          <div class="section-card">
+            <div class="flex items-center justify-between mb-2">
+              <span class="section-title mb-0">学校情報</span>
+              <div class="flex items-center gap-1">
+                <button
+                  id="btn-edit-school-info"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+                  title="学校情報を編集"
+                >
+                  <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                  <span>編集</span>
+                </button>
+                <button
+                  id="btn-save-school-info"
+                  class="hidden bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+                  title="学校情報.csvへ上書き保存"
+                >
+                  <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                  <span>保存</span>
+                </button>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <div>
+                <label class="control-label">学校名</label>
+                <input
+                  type="text"
+                  id="school-name"
+                  class="input-text font-semibold"
+                  value=""
+                  placeholder="例：福岡市立箱崎中学校"
+                />
+              </div>
+              <div>
+                <label class="control-label">学校所在地</label>
+                <input
+                  type="text"
+                  id="school-address"
+                  class="input-text"
+                  value=""
+                  placeholder="例：東区筥松四丁目２１番２２号"
+                />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="control-label">電話番号</label>
+                  <input
+                    type="text"
+                    id="school-phone"
+                    class="input-text text-xs font-mono"
+                    value=""
+                    placeholder="例：092-611-2296"
+                  />
+                </div>
+                <div>
+                  <label class="control-label">FAX番号</label>
+                  <input
+                    type="text"
+                    id="school-fax"
+                    class="input-text text-xs font-mono"
+                    value=""
+                    placeholder="例：092-611-2297"
+                  />
+                </div>
+              </div>
+              <div>
+                <label class="control-label">学校長名</label>
+                <input
+                  type="text"
+                  id="principal-name"
+                  class="input-text"
+                  value=""
+                  placeholder="例：福岡　花子"
+                />
+              </div>
             </div>
           </div>
 
@@ -708,84 +787,6 @@
             </div>
           </div>
 
-          <!-- Section: School Metadata -->
-          <div class="section-card">
-            <div class="flex items-center justify-between mb-2">
-              <span class="section-title mb-0">学校情報</span>
-              <div class="flex items-center gap-1">
-                <button
-                  id="btn-edit-school-info"
-                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
-                  title="学校情報を編集"
-                >
-                  <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                  <span>編集</span>
-                </button>
-                <button
-                  id="btn-save-school-info"
-                  class="hidden bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
-                  title="学校情報.csvへ上書き保存"
-                >
-                  <i data-lucide="save" class="w-3.5 h-3.5"></i>
-                  <span>保存</span>
-                </button>
-              </div>
-            </div>
-            <div class="space-y-2">
-              <div>
-                <label class="control-label">学校名</label>
-                <input
-                  type="text"
-                  id="school-name"
-                  class="input-text font-semibold"
-                  value="福岡市立箱崎中学校"
-                  placeholder="例：福岡市立箱崎中学校"
-                />
-              </div>
-              <div>
-                <label class="control-label">学校所在地</label>
-                <input
-                  type="text"
-                  id="school-address"
-                  class="input-text"
-                  value="東区筥松四丁目２１番２２号"
-                  placeholder="例：東区筥松四丁目２１番２２号"
-                />
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <div>
-                  <label class="control-label">電話番号</label>
-                  <input
-                    type="text"
-                    id="school-phone"
-                    class="input-text text-xs font-mono"
-                    value="092-611-2296"
-                    placeholder="例：092-611-2296"
-                  />
-                </div>
-                <div>
-                  <label class="control-label">FAX番号</label>
-                  <input
-                    type="text"
-                    id="school-fax"
-                    class="input-text text-xs font-mono"
-                    value="092-611-2297"
-                    placeholder="例：092-611-2297"
-                  />
-                </div>
-              </div>
-              <div>
-                <label class="control-label">学校長名</label>
-                <input
-                  type="text"
-                  id="principal-name"
-                  class="input-text"
-                  value="福岡　花子"
-                  placeholder="例：福岡　花子"
-                />
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -1304,7 +1305,7 @@
 
         // Application State representing all inputs in form
         let state = {
-          schoolPreset: "1", // Defaults to Hakozaki JHS
+          schoolPreset: "custom",
           certYear: 8,
           certMonth: 6,
           certDay: 8,
@@ -1322,11 +1323,11 @@
           showTransferSection: true,
           sportsStatus: "加入",
           aidStatus: "就学援助受給中",
-          schoolName: "福岡市立箱崎中学校",
-          schoolAddress: "東区筥松四丁目２１番２２号",
-          schoolPhone: "092-611-2296",
-          schoolFax: "092-611-2297",
-          principalName: "福岡　花子",
+          schoolName: "",
+          schoolAddress: "",
+          schoolPhone: "",
+          schoolFax: "",
+          principalName: "",
           attendance: {
             att: ["", "", "", "", "", "", "", "", "", "", "", ""], // 4 to 3
             abs: ["", "", "", "", "", "", "", "", "", "", "", ""],
@@ -1383,13 +1384,14 @@
             .map((line) => parseCsvLine(line))
             .filter((cols) => cols.some((value) => value.trim() !== ""))
             .filter((cols) => cols[0] && cols[1])
-            .map((cols) => ({
-              id: cols[0].trim(),
-              name: cols[1].trim(),
-              address: (cols[2] || "").trim(),
-              phone: (cols[3] || "").trim(),
-              fax: (cols[4] || "").trim(),
-            }));
+              .map((cols) => ({
+                id: cols[0].trim(),
+                name: cols[1].trim(),
+                address: (cols[2] || "").trim(),
+                phone: (cols[3] || "").trim(),
+                fax: (cols[4] || "").trim(),
+                principal: (cols[5] || "").trim(),
+              }));
         }
 
         function csvEscape(value) {
@@ -1400,11 +1402,12 @@
         function buildSchoolCsv() {
           const rows = SCHOOL_DATABASE.map((sch) => [
             sch.id,
-            sch.name,
-            sch.address,
-            sch.phone,
-            sch.fax,
-          ]);
+              sch.name,
+              sch.address,
+              sch.phone,
+              sch.fax,
+              sch.principal || "",
+            ]);
           return (
             rows.map((row) => row.map(csvEscape).join(",")).join("\r\n") +
             "\r\n"
@@ -1432,6 +1435,42 @@
           )
             ? state.schoolPreset
             : "custom";
+        }
+
+        function clearSchoolInfoState() {
+          state.schoolPreset = "custom";
+          state.schoolName = "";
+          state.schoolAddress = "";
+          state.schoolPhone = "";
+          state.schoolFax = "";
+          state.principalName = "";
+        }
+
+        async function requestSchoolCsvWriteHandle() {
+          if (!window.showOpenFilePicker) {
+            showNotification(
+              "CSVの上書き保存には対応ブラウザが必要です",
+              true,
+            );
+            return null;
+          }
+
+          showNotification(
+            "変更を反映する学校情報.csvを選択してください",
+          );
+
+          const [handle] = await window.showOpenFilePicker({
+            types: [
+              {
+                description: "CSV files",
+                accept: { "text/csv": [".csv"] },
+              },
+            ],
+            multiple: false,
+          });
+
+          schoolCsvFileHandle = handle;
+          return handle;
         }
 
         async function loadSchoolDatabaseFromCsv(fileHandle = null) {
@@ -1464,6 +1503,8 @@
             console.warn("学校情報.csvの読み込みに失敗しました", err);
             SCHOOL_DATABASE = [];
             schoolCsvLoaded = false;
+            schoolCsvFileHandle = null;
+            clearSchoolInfoState();
             populateSchoolPresetSelect();
             showNotification(
               "index.htmlと同じフォルダに学校情報.csvが見つかりません。学校情報.csvを読み込みボタンから場所を指定してください",
@@ -1482,6 +1523,7 @@
           state.schoolAddress = targetSch.address;
           state.schoolPhone = targetSch.phone;
           state.schoolFax = targetSch.fax;
+          state.principalName = targetSch.principal || "";
         }
 
         async function chooseSchoolCsvFile() {
@@ -1551,6 +1593,7 @@
               address: "",
               phone: "",
               fax: "",
+              principal: "",
             };
             SCHOOL_DATABASE.push(targetSch);
             state.schoolPreset = nextId;
@@ -1560,25 +1603,12 @@
           targetSch.address = state.schoolAddress.trim();
           targetSch.phone = state.schoolPhone.trim();
           targetSch.fax = state.schoolFax.trim();
+          targetSch.principal = state.principalName.trim();
 
           try {
             if (!schoolCsvFileHandle) {
-              if (!window.showSaveFilePicker) {
-                showNotification(
-                  "CSVの上書き保存には対応ブラウザが必要です",
-                  true,
-                );
-                return;
-              }
-              schoolCsvFileHandle = await window.showSaveFilePicker({
-                suggestedName: "学校情報.csv",
-                types: [
-                  {
-                    description: "CSV files",
-                    accept: { "text/csv": [".csv"] },
-                  },
-                ],
-              });
+              const handle = await requestSchoolCsvWriteHandle();
+              if (!handle) return;
             }
 
             const writable = await schoolCsvFileHandle.createWritable();
