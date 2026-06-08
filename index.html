@@ -1,1647 +1,2477 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>まじん式PDF v1 — 在学証明書ジェネレーター</title>
-    
+
     <!-- Fonts (Required: link tags with crossorigin="anonymous" to prevent CORS issues in html-to-image) -->
-    <link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Serif+JP:wght@400;500;700;900&display=swap">
-    
+    <link
+      rel="stylesheet"
+      crossorigin="anonymous"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+JP:wght@400;500;700;900&family=Noto+Serif+JP:wght@400;500;700;900&display=swap"
+    />
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
-    
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@0.344.0"></script>
-    
+
     <!-- jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
+
     <!-- html-to-image -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
 
     <style>
-        /* Base styles */
-        :root {
-            --page-w: 794px;
-            --page-h: 1123px; /* A4 Ratio */
+      /* Base styles */
+      :root {
+        --page-w: 794px;
+        --page-h: 1123px; /* A4 Ratio */
+      }
+
+      body {
+        font-family: "Inter", "Noto Sans JP", sans-serif;
+        background-color: #f1f5f9;
+        overflow: hidden;
+      }
+
+      /* Serif font utility for authentic official forms */
+      .serif-text {
+        font-family: "Noto Serif JP", "Georgia", serif;
+      }
+
+      /* Scrollbar styles for Left Pane */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1;
+        border-radius: 3px;
+      }
+
+      /* Preview Canvas structure (Strict alignment rules) */
+      .pdf-page {
+        width: var(--page-w);
+        height: var(--page-h);
+        background: #ffffff;
+        position: relative;
+        transform-origin: top left;
+        box-sizing: border-box;
+        user-select: none;
+      }
+      .pdf-page [class*="text-slate-"],
+      .pdf-page [class*="text-rose-"],
+      .pdf-page [class*="text-indigo-"] {
+        color: #000000 !important;
+      }
+      .pdf-page [class*="bg-slate-"],
+      .pdf-page [class*="bg-rose-"],
+      .pdf-page [class*="bg-indigo-"] {
+        background-color: transparent !important;
+      }
+      .pdf-page [class*="border-slate-"],
+      .pdf-page [class*="border-rose-"],
+      .pdf-page [class*="border-indigo-"] {
+        border-color: #000000 !important;
+      }
+      .pdf-page [class*="decoration-slate-"] {
+        text-decoration-color: #000000 !important;
+      }
+        .pdf-page [class*="shadow"] {
+            box-shadow: none !important;
         }
-        
-        body {
-            font-family: 'Inter', 'Noto Sans JP', sans-serif;
-            background-color: #f1f5f9;
-            overflow: hidden;
+        .pdf-page .attendance-disabled-cell {
+            background-image: linear-gradient(
+                to bottom right,
+                transparent calc(50% - 0.5px),
+                #000000 calc(50% - 0.5px),
+                #000000 calc(50% + 0.5px),
+                transparent calc(50% + 0.5px)
+            ) !important;
         }
 
-        /* Serif font utility for authentic official forms */
-        .serif-text {
-            font-family: 'Noto Serif JP', 'Georgia', serif;
-        }
+      /* Crucial: Grid-based rendering wrapper for perfect scaling centering */
+      .preview-wrapper {
+        display: grid;
+        place-items: start center;
+        padding: 20px 0;
+        gap: 20px;
+        width: 100%;
+        min-height: 100%;
+      }
 
-        /* Scrollbar styles for Left Pane */
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background-color: #cbd5e1;
-            border-radius: 3px;
-        }
+      /* Floating Zoom Controls container */
+      .floating-zoom {
+        position: absolute;
+        bottom: 16px;
+        left: 16px;
+        z-index: 40;
+        opacity: 0.4;
+        transition: opacity 0.2s ease-in-out;
+      }
+      .floating-zoom:hover {
+        opacity: 1;
+      }
 
-        /* Preview Canvas structure (Strict alignment rules) */
-        .pdf-page {
-            width: var(--page-w);
-            height: var(--page-h);
-            background: #ffffff;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-            position: relative;
-            transform-origin: top left;
-            box-sizing: border-box;
-            user-select: none;
+      /* Loading Overlay inside right panel only */
+      .pdf-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        display: none;
+        place-items: center;
+        background: rgba(100, 116, 139, 0.75);
+        backdrop-filter: blur(6px);
+      }
+      .pdf-overlay.active {
+        display: grid;
+      }
+      .pdf-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top-color: #ffffff;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
         }
+      }
 
-        /* Crucial: Grid-based rendering wrapper for perfect scaling centering */
-        .preview-wrapper {
-            display: grid;
-            place-items: start center;
-            padding: 20px 0;
-            gap: 20px;
-            width: 100%;
-            min-height: 100%;
-        }
+      /* Dynamic classes used for density adjustment checks */
+      .density-gap {
+        transition: gap 0.1s ease;
+      }
+      .density-pad {
+        transition: padding 0.1s ease;
+      }
 
-        /* Floating Zoom Controls container */
-        .floating-zoom {
-            position: absolute;
-            bottom: 16px;
-            left: 16px;
-            z-index: 40;
-            opacity: 0.4;
-            transition: opacity 0.2s ease-in-out;
-        }
-        .floating-zoom:hover {
-            opacity: 1.0;
-        }
+      /* Form styling helper classes - NO @apply, purely native CSS */
+      .control-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #475569;
+        margin-bottom: 3px;
+        display: block;
+      }
+      .input-text {
+        width: 100%;
+        padding: 6px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 13px;
+        color: #1e293b;
+        background-color: #ffffff;
+        transition: all 0.15s ease;
+      }
+      .input-text:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+      }
+      .section-card {
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+      .section-title {
+        font-size: 12px;
+        font-weight: 800;
+        color: #1e293b;
+        border-left: 3px solid #6366f1;
+        padding-left: 8px;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+      }
 
-        /* Loading Overlay inside right panel only */
-        .pdf-overlay {
-            position: absolute;
-            inset: 0;
-            z-index: 50;
-            display: none;
-            place-items: center;
-            background: rgba(100, 116, 139, 0.75);
-            backdrop-filter: blur(6px);
+      /* Responsive Layout Rules */
+      @media (max-width: 767px) {
+        #main-app-shell {
+          flex-direction: column !important;
         }
-        .pdf-overlay.active {
-            display: grid;
+        #left-pane {
+          width: 100% !important;
+          height: auto !important;
+          max-height: 45vh;
+          order: 2;
+          border-right: none !important;
+          border-top: 1px solid #e2e8f0;
         }
-        .pdf-spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top-color: #ffffff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        #right-pane {
+          order: 1;
+          flex: 1;
+          min-height: 0;
         }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Dynamic classes used for density adjustment checks */
-        .density-gap {
-            transition: gap 0.1s ease;
-        }
-        .density-pad {
-            transition: padding 0.1s ease;
-        }
-
-        /* Official Certificate Elements Styles */
-        .print-seal {
-            border: 1.5px solid rgba(239, 68, 68, 0.7);
-            color: rgba(239, 68, 68, 0.8);
-            border-radius: 50%;
-            width: 44px;
-            height: 44px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            font-weight: bold;
-            transform: rotate(-10deg);
-            user-select: none;
-        }
-
-        /* Form styling helper classes - NO @apply, purely native CSS */
-        .control-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: #475569;
-            margin-bottom: 3px;
-            display: block;
-        }
-        .input-text {
-            width: 100%;
-            padding: 6px 10px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            font-size: 13px;
-            color: #1e293b;
-            background-color: #ffffff;
-            transition: all 0.15s ease;
-        }
-        .input-text:focus {
-            outline: none;
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-        }
-        .section-card {
-            background-color: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-        .section-title {
-            font-size: 12px;
-            font-weight: 800;
-            color: #1e293b;
-            border-left: 3px solid #6366f1;
-            padding-left: 8px;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-        }
-
-        /* Responsive Layout Rules */
-        @media (max-width: 767px) {
-            #main-app-shell {
-                flex-direction: column !important;
-            }
-            #left-pane {
-                width: 100% !important;
-                height: auto !important;
-                max-height: 45vh;
-                order: 2;
-                border-right: none !important;
-                border-top: 1px solid #e2e8f0;
-            }
-            #right-pane {
-                order: 1;
-                flex: 1;
-                min-height: 0;
-            }
-        }
+      }
     </style>
-</head>
-<body class="h-screen flex flex-col">
-
+  </head>
+  <body class="h-screen flex flex-col">
     <!-- Embedded Data Storage (Reconstructed automatically upon code extraction or app boot) -->
     <script>
-        /* __INJECTED_DATA_START__ */
-        const __EMBEDDED_DATA__ = null;
-        /* __INJECTED_DATA_END__ */
+      /* __INJECTED_DATA_START__ */
+      const __EMBEDDED_DATA__ = null;
+      /* __INJECTED_DATA_END__ */
     </script>
 
     <!-- Main Application Shell -->
     <main id="main-app-shell" class="flex flex-row flex-1 overflow-hidden">
-        
-        <!-- Left Panel: Form Control & Actions (width: 380px, strictly no header label to maximize work area) -->
-        <section id="left-pane" class="w-[380px] flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col h-full overflow-hidden">
-            
-            <!-- Quick Sticky Actions Header -->
-            <div class="p-3 bg-white border-b border-slate-200 flex flex-col gap-2 shadow-sm">
-                <div class="flex items-center gap-1">
-                    <!-- PDF Generation & Code controls -->
-                    <button id="btn-download" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm">
-                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                        <span id="downloadBtnText">PDF保存</span>
-                    </button>
-                    <button id="btn-copy-code" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all" title="最新状態のソースコードをコピー">
-                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                    </button>
-                    <button id="btn-open-newtab" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all" title="別タブで独立起動">
-                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                    </button>
-                    <label class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer" title="PDFまたはHTMLをドロップして状態復元">
-                        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
-                        <input type="file" id="btn-restore-upload" accept=".pdf,.html" class="hidden">
-                    </label>
+      <!-- Left Panel: Form Control & Actions (width: 380px, strictly no header label to maximize work area) -->
+      <section
+        id="left-pane"
+        class="w-[380px] flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col h-full overflow-hidden"
+      >
+        <!-- Quick Sticky Actions Header -->
+        <div
+          class="p-3 bg-white border-b border-slate-200 flex flex-col gap-2 shadow-sm"
+        >
+          <div class="flex items-center gap-1">
+            <!-- PDF Generation & Code controls -->
+            <button
+              id="btn-download"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-sm"
+            >
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span id="downloadBtnText">PDF保存</span>
+            </button>
+            <button
+              id="btn-copy-code"
+              class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all"
+              title="最新状態のソースコードをコピー"
+            >
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            </button>
+            <button
+              id="btn-open-newtab"
+              class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all"
+              title="別タブで独立起動"
+            >
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            </button>
+            <label
+              class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-2.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer"
+              title="PDFまたはHTMLをドロップして状態復元"
+            >
+              <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+              <input
+                type="file"
+                id="btn-restore-upload"
+                accept=".pdf,.html"
+                class="hidden"
+              />
+            </label>
+          </div>
+          <!-- Mini Notifications Inline Info -->
+          <div
+            id="notification-bar"
+            class="hidden bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md p-1.5 text-[11px] flex items-center gap-1.5 transition-all"
+          >
+            <i
+              data-lucide="check-circle"
+              class="w-3 h-3 text-emerald-600 flex-shrink-0"
+            ></i>
+            <span id="notification-message">コピー完了しました！</span>
+          </div>
+        </div>
+
+        <!-- Form Content Scroll Area -->
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
+          <!-- Section: School Autopopulate Database -->
+          <div class="section-card">
+            <div class="section-title">
+              中学校クイック設定 (福岡市データベース)
+            </div>
+            <div class="space-y-2">
+              <div>
+                <label class="control-label">プリセット選択</label>
+                <select
+                  id="school-preset-select"
+                  class="input-text text-xs bg-slate-50"
+                >
+                  <option value="custom">— カスタム手入力する —</option>
+                  <!-- Populated dynamically by javascript -->
+                </select>
+              </div>
+              <button
+                id="btn-load-school-csv"
+                class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all"
+                title="学校情報.csvを選択して読み込み"
+              >
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                <span>学校情報.csvを読み込み</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section: Base Certificate Options -->
+          <div class="section-card">
+            <div class="section-title">基本証明内容</div>
+            <div class="space-y-3">
+              <div>
+                <label class="control-label">証明日 (和暦入力)</label>
+                <div class="grid grid-cols-4 gap-1 items-center">
+                  <div class="col-span-1 text-xs text-slate-500 font-bold">
+                    令和
+                  </div>
+                  <input
+                    type="number"
+                    id="cert-year"
+                    class="input-text text-center text-xs"
+                    value="8"
+                    min="1"
+                    max="99"
+                  />
+                  <input
+                    type="number"
+                    id="cert-month"
+                    class="input-text text-center text-xs"
+                    value="6"
+                    min="1"
+                    max="12"
+                  />
+                  <input
+                    type="number"
+                    id="cert-day"
+                    class="input-text text-center text-xs"
+                    value="8"
+                    min="1"
+                    max="31"
+                  />
                 </div>
-                <!-- Mini Notifications Inline Info -->
-                <div id="notification-bar" class="hidden bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md p-1.5 text-[11px] flex items-center gap-1.5 transition-all">
-                    <i data-lucide="check-circle" class="w-3 h-3 text-emerald-600 flex-shrink-0"></i>
-                    <span id="notification-message">コピー完了しました！</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="control-label">対象学年</label>
+                  <select id="student-grade" class="input-text">
+                    <option value="1">第 1 学年</option>
+                    <option value="2">第 2 学年</option>
+                    <option value="3">第 3 学年</option>
+                  </select>
                 </div>
+                <div>
+                  <label class="control-label">在学区分</label>
+                  <select id="enroll-status" class="input-text">
+                    <option value="current">在学している (現在)</option>
+                    <option value="until">在学していた (転校等)</option>
+                  </select>
+                </div>
+              </div>
+              <div id="enroll-until-date-container" class="hidden">
+                <label class="control-label">在学終了日 (まで)</label>
+                <div class="grid grid-cols-4 gap-1 items-center">
+                  <div class="col-span-1 text-xs text-slate-500 font-bold">
+                    令和
+                  </div>
+                  <input
+                    type="number"
+                    id="until-year"
+                    class="input-text text-center text-xs"
+                    value="8"
+                    min="1"
+                  />
+                  <input
+                    type="number"
+                    id="until-month"
+                    class="input-text text-center text-xs"
+                    value="4"
+                    min="1"
+                    max="12"
+                  />
+                  <input
+                    type="number"
+                    id="until-day"
+                    class="input-text text-center text-xs"
+                    value="1"
+                    min="1"
+                    max="31"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Student Information -->
+          <div class="section-card">
+            <div class="section-title">生徒・保護者情報</div>
+            <div class="space-y-3">
+              <div>
+                <label class="control-label">生徒氏名</label>
+                <input
+                  type="text"
+                  id="student-name"
+                  class="input-text"
+                  value="福岡　一郎"
+                  placeholder="例：福岡　一郎"
+                />
+              </div>
+              <div>
+                <label class="control-label">保護者氏名</label>
+                <input
+                  type="text"
+                  id="guardian-name"
+                  class="input-text"
+                  value="福岡　太郎"
+                  placeholder="例：福岡　太郎"
+                />
+              </div>
+              <div>
+                <label class="control-label">生年月日</label>
+                <div class="grid grid-cols-5 gap-1 items-center">
+                  <select
+                    id="birth-era"
+                    class="col-span-2 input-text text-xs px-1"
+                  >
+                    <option value="平成">平成</option>
+                    <option value="令和">令和</option>
+                  </select>
+                  <input
+                    type="number"
+                    id="birth-year"
+                    class="input-text text-center text-xs px-1"
+                    value="21"
+                    min="1"
+                  />
+                  <input
+                    type="number"
+                    id="birth-month"
+                    class="input-text text-center text-xs px-1"
+                    value="5"
+                    min="1"
+                    max="12"
+                  />
+                  <input
+                    type="number"
+                    id="birth-day"
+                    class="input-text text-center text-xs px-1"
+                    value="1"
+                    min="1"
+                    max="31"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: Transfer Only Fields (※以下は転校による証明発行時のみ記載) -->
+          <div class="section-card">
+            <div class="flex items-center justify-between mb-2">
+              <span class="section-title mb-0">転校証明時用の記載内容</span>
+              <input
+                type="checkbox"
+                id="show-transfer-section"
+                class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                checked
+              />
             </div>
 
-            <!-- Form Content Scroll Area -->
-            <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
-                
-                <!-- Section: School Autopopulate Database -->
-                <div class="section-card">
-                    <div class="section-title">中学校クイック設定 (福岡市データベース)</div>
-                    <div class="space-y-2">
-                        <div>
-                            <label class="control-label">プリセット選択</label>
-                            <select id="school-preset-select" class="input-text text-xs bg-slate-50">
-                                <option value="custom">— カスタム手入力する —</option>
-                                <!-- Populated dynamically by javascript -->
-                            </select>
-                        </div>
-                        <button id="btn-load-school-csv" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all" title="学校情報.csvを選択して読み込み">
-                            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
-                            <span>学校情報.csvを読み込み</span>
-                        </button>
-                    </div>
+            <div
+              id="transfer-inputs-container"
+              class="space-y-3 pt-2 border-t border-slate-100"
+            >
+              <div>
+                <label class="control-label">出席・欠席状況 (4月〜3月)</label>
+                <div
+                  class="grid grid-cols-7 gap-1 text-[10px] font-bold text-slate-500 text-center mb-1"
+                >
+                  <div>月</div>
+                  <div>出</div>
+                  <div>欠</div>
+                  <div class="border-l border-slate-200"></div>
+                  <div>月</div>
+                  <div>出</div>
+                  <div>欠</div>
                 </div>
+                <!-- Attendance monthly fields -->
+                <div class="grid grid-cols-7 gap-1 text-xs">
+                  <div>4月</div>
+                  <input
+                    type="number"
+                    id="att-4"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-4"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+                  <div class="border-l border-slate-200"></div>
+                  <div>10月</div>
+                  <input
+                    type="number"
+                    id="att-10"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-10"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
 
-                <!-- Section: Base Certificate Options -->
-                <div class="section-card">
-                    <div class="section-title">基本証明内容</div>
-                    <div class="space-y-3">
-                        <div>
-                            <label class="control-label">証明日 (和暦入力)</label>
-                            <div class="grid grid-cols-4 gap-1 items-center">
-                                <div class="col-span-1 text-xs text-slate-500 font-bold">令和</div>
-                                <input type="number" id="cert-year" class="input-text text-center text-xs" value="8" min="1" max="99">
-                                <input type="number" id="cert-month" class="input-text text-center text-xs" value="6" min="1" max="12">
-                                <input type="number" id="cert-day" class="input-text text-center text-xs" value="8" min="1" max="31">
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="control-label">対象学年</label>
-                                <select id="student-grade" class="input-text">
-                                    <option value="1">第 1 学年</option>
-                                    <option value="2">第 2 学年</option>
-                                    <option value="3">第 3 学年</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="control-label">在学区分</label>
-                                <select id="enroll-status" class="input-text">
-                                    <option value="current">在学している (現在)</option>
-                                    <option value="until">在学していた (転校等)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div id="enroll-until-date-container" class="hidden">
-                            <label class="control-label">在学終了日 (まで)</label>
-                            <div class="grid grid-cols-4 gap-1 items-center">
-                                <div class="col-span-1 text-xs text-slate-500 font-bold">令和</div>
-                                <input type="number" id="until-year" class="input-text text-center text-xs" value="8" min="1">
-                                <input type="number" id="until-month" class="input-text text-center text-xs" value="4" min="1" max="12">
-                                <input type="number" id="until-day" class="input-text text-center text-xs" value="1" min="1" max="31">
-                            </div>
-                        </div>
-                    </div>
+                  <div>5月</div>
+                  <input
+                    type="number"
+                    id="att-5"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-5"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+                  <div class="border-l border-slate-200"></div>
+                  <div>11月</div>
+                  <input
+                    type="number"
+                    id="att-11"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-11"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+
+                  <div>6月</div>
+                  <input
+                    type="number"
+                    id="att-6"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-6"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+                  <div class="border-l border-slate-200"></div>
+                  <div>12月</div>
+                  <input
+                    type="number"
+                    id="att-12"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-12"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+
+                  <div>7月</div>
+                  <input
+                    type="number"
+                    id="att-7"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-7"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+                  <div class="border-l border-slate-200"></div>
+                  <div>1月</div>
+                  <input
+                    type="number"
+                    id="att-1"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-1"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+
+                  <div>8月</div>
+                  <input
+                    type="number"
+                    id="att-8"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-8"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+                  <div class="border-l border-slate-200"></div>
+                  <div>2月</div>
+                  <input
+                    type="number"
+                    id="att-2"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-2"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+
+                  <div>9月</div>
+                  <input
+                    type="number"
+                    id="att-9"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-9"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
+                  <div class="border-l border-slate-200"></div>
+                  <div>3月</div>
+                  <input
+                    type="number"
+                    id="att-3"
+                    class="input-text p-1 text-center font-semibold"
+                    value=""
+                    min="0"
+                  />
+                  <input
+                    type="number"
+                    id="abs-3"
+                    class="input-text p-1 text-center font-semibold text-rose-500"
+                    value=""
+                    min="0"
+                  />
                 </div>
+              </div>
 
-                <!-- Section: Student Information -->
-                <div class="section-card">
-                    <div class="section-title">生徒・保護者情報</div>
-                    <div class="space-y-3">
-                        <div>
-                            <label class="control-label">生徒氏名</label>
-                            <input type="text" id="student-name" class="input-text" value="福岡　一郎" placeholder="例：福岡　一郎">
-                        </div>
-                        <div>
-                            <label class="control-label">保護者氏名</label>
-                            <input type="text" id="guardian-name" class="input-text" value="福岡　太郎" placeholder="例：福岡　太郎">
-                        </div>
-                        <div>
-                            <label class="control-label">生年月日</label>
-                            <div class="grid grid-cols-5 gap-1 items-center">
-                                <select id="birth-era" class="col-span-2 input-text text-xs px-1">
-                                    <option value="平成">平成</option>
-                                    <option value="令和">令和</option>
-                                </select>
-                                <input type="number" id="birth-year" class="input-text text-center text-xs px-1" value="21" min="1">
-                                <input type="number" id="birth-month" class="input-text text-center text-xs px-1" value="5" min="1" max="12">
-                                <input type="number" id="birth-day" class="input-text text-center text-xs px-1" value="1" min="1" max="31">
-                            </div>
-                        </div>
-                    </div>
+              <div>
+                <label class="control-label"
+                  >スポーツ振興センター加入状況</label
+                >
+                <select id="sports-status" class="input-text">
+                  <option value="加入">加入</option>
+                  <option value="非加入">非加入</option>
+                  <option value="空白">— 指定なし —</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="control-label">就学援助受給状況</label>
+                <select id="aid-status" class="input-text">
+                  <option value="教育扶助受給中">教育扶助受給中</option>
+                  <option value="就学援助受給中">就学援助受給中</option>
+                  <option value="いずれも未受給">いずれも未受給</option>
+                  <option value="空白">— 指定なし —</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section: School Metadata -->
+          <div class="section-card">
+            <div class="flex items-center justify-between mb-2">
+              <span class="section-title mb-0">学校情報</span>
+              <div class="flex items-center gap-1">
+                <button
+                  id="btn-edit-school-info"
+                  class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+                  title="学校情報を編集"
+                >
+                  <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                  <span>編集</span>
+                </button>
+                <button
+                  id="btn-save-school-info"
+                  class="hidden bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all"
+                  title="学校情報.csvへ上書き保存"
+                >
+                  <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                  <span>保存</span>
+                </button>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <div>
+                <label class="control-label">学校名</label>
+                <input
+                  type="text"
+                  id="school-name"
+                  class="input-text font-semibold"
+                  value="福岡市立箱崎中学校"
+                  placeholder="例：福岡市立箱崎中学校"
+                />
+              </div>
+              <div>
+                <label class="control-label">学校所在地</label>
+                <input
+                  type="text"
+                  id="school-address"
+                  class="input-text"
+                  value="東区筥松四丁目２１番２２号"
+                  placeholder="例：東区筥松四丁目２１番２２号"
+                />
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="control-label">電話番号</label>
+                  <input
+                    type="text"
+                    id="school-phone"
+                    class="input-text text-xs font-mono"
+                    value="092-611-2296"
+                    placeholder="例：092-611-2296"
+                  />
                 </div>
-
-                <!-- Section: Transfer Only Fields (※以下は転校による証明発行時のみ記載) -->
-                <div class="section-card">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="section-title mb-0">転校証明時用の記載内容</span>
-                        <input type="checkbox" id="show-transfer-section" class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500" checked>
-                    </div>
-                    
-                    <div id="transfer-inputs-container" class="space-y-3 pt-2 border-t border-slate-100">
-                        <div>
-                            <label class="control-label">出席・欠席状況 (4月〜3月)</label>
-                            <div class="grid grid-cols-7 gap-1 text-[10px] font-bold text-slate-500 text-center mb-1">
-                                <div>月</div><div>出</div><div>欠</div>
-                                <div class="border-l border-slate-200"></div>
-                                <div>月</div><div>出</div><div>欠</div>
-                            </div>
-                            <!-- Attendance monthly fields -->
-                            <div class="grid grid-cols-7 gap-1 text-xs">
-                                <div>4月</div>
-                                <input type="number" id="att-4" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-4" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-                                <div class="border-l border-slate-200"></div>
-                                <div>10月</div>
-                                <input type="number" id="att-10" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-10" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-
-                                <div>5月</div>
-                                <input type="number" id="att-5" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-5" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-                                <div class="border-l border-slate-200"></div>
-                                <div>11月</div>
-                                <input type="number" id="att-11" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-11" class="input-text p-1 text-center font-semibold text-rose-500" value="1" min="0">
-
-                                <div>6月</div>
-                                <input type="number" id="att-6" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-6" class="input-text p-1 text-center font-semibold text-rose-500" value="3" min="0">
-                                <div class="border-l border-slate-200"></div>
-                                <div>12月</div>
-                                <input type="number" id="att-12" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-12" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-
-                                <div>7月</div>
-                                <input type="number" id="att-7" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-7" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-                                <div class="border-l border-slate-200"></div>
-                                <div>1月</div>
-                                <input type="number" id="att-1" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-1" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-
-                                <div>8月</div>
-                                <input type="number" id="att-8" class="input-text p-1 text-center font-semibold" value="5" min="0">
-                                <input type="number" id="abs-8" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-                                <div class="border-l border-slate-200"></div>
-                                <div>2月</div>
-                                <input type="number" id="att-2" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-2" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-
-                                <div>9月</div>
-                                <input type="number" id="att-9" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-9" class="input-text p-1 text-center font-semibold text-rose-500" value="1" min="0">
-                                <div class="border-l border-slate-200"></div>
-                                <div>3月</div>
-                                <input type="number" id="att-3" class="input-text p-1 text-center font-semibold" value="15" min="0">
-                                <input type="number" id="abs-3" class="input-text p-1 text-center font-semibold text-rose-500" value="0" min="0">
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="control-label">スポーツ振興センター加入状況</label>
-                            <select id="sports-status" class="input-text">
-                                <option value="加入">加入</option>
-                                <option value="非加入">非加入</option>
-                                <option value="空白">— 指定なし —</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="control-label">就学援助受給状況</label>
-                            <select id="aid-status" class="input-text">
-                                <option value="教育扶助受給中">教育扶助受給中</option>
-                                <option value="就学援助受給中">就学援助受給中</option>
-                                <option value="いずれも未受給">いずれも未受給</option>
-                                <option value="空白">— 指定なし —</option>
-                            </select>
-                        </div>
-                    </div>
+                <div>
+                  <label class="control-label">FAX番号</label>
+                  <input
+                    type="text"
+                    id="school-fax"
+                    class="input-text text-xs font-mono"
+                    value="092-611-2297"
+                    placeholder="例：092-611-2297"
+                  />
                 </div>
+              </div>
+              <div>
+                <label class="control-label">学校長名</label>
+                <input
+                  type="text"
+                  id="principal-name"
+                  class="input-text"
+                  value="福岡　花子"
+                  placeholder="例：福岡　花子"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-                <!-- Section: School Metadata -->
-                <div class="section-card">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="section-title mb-0">学校情報</span>
+      <!-- Right Panel: Immersive Document Preview Area (no headers, maximized) -->
+      <section
+        id="right-pane"
+        class="flex-1 flex flex-col overflow-hidden bg-slate-200 relative"
+      >
+        <!-- Realtime PDF Generation Spinner Overlay (placed strictly inside right panel only) -->
+        <div id="pdf-overlay" class="pdf-overlay">
+          <div class="flex flex-col items-center gap-4">
+            <div class="pdf-spinner"></div>
+            <p class="text-white font-bold text-sm tracking-wide">
+              PDFを生成中...
+            </p>
+          </div>
+        </div>
+
+        <!-- Absolute Floating Zoom Control Area (Floating in bottom-left corner) -->
+        <div
+          class="floating-zoom flex items-center bg-white/95 border border-slate-300 rounded-lg p-1.5 shadow-lg gap-1.5 select-none"
+        >
+          <button
+            id="btn-zoom-out"
+            class="w-7 h-7 flex items-center justify-center hover:bg-slate-100 text-slate-700 rounded transition-all"
+          >
+            <i data-lucide="zoom-out" class="w-4 h-4"></i>
+          </button>
+          <span
+            id="zoom-level-text"
+            class="text-xs font-black text-slate-700 w-12 text-center select-none"
+            >100%</span
+          >
+          <button
+            id="btn-zoom-in"
+            class="w-7 h-7 flex items-center justify-center hover:bg-slate-100 text-slate-700 rounded transition-all"
+          >
+            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+          </button>
+          <div class="h-4 w-px bg-slate-300"></div>
+          <button
+            id="btn-zoom-fit"
+            class="text-[10px] font-black px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded transition-all"
+          >
+            FIT
+          </button>
+        </div>
+
+        <!-- Core Canvas Wrapper with CSS Grid Centering -->
+        <div id="preview-container" class="flex-1 overflow-auto bg-slate-200">
+          <div class="preview-wrapper">
+            <!-- Scaling bounding box container -->
+            <div class="capture-area-container" style="position: relative">
+              <!-- The target A4 sheet of document -->
+              <div
+                id="school-cert-page"
+                class="pdf-page serif-text p-[50px] flex flex-col justify-between"
+                data-page="0"
+              >
+                <!-- Master Document Container - Allows dynamic Auto-Density fitting -->
+                <div
+                  class="page-inner flex flex-col h-full justify-between"
+                  style="box-sizing: border-box"
+                >
+                  <!-- 1. Document Header -->
+                  <div class="text-center mb-6 pt-4">
+                    <h1
+                      class="text-3xl font-bold tracking-[0.5em] text-black pr-[-0.5em]"
+                    >
+                      在学証明書
+                    </h1>
+                  </div>
+
+                  <!-- 2. Main Certification Sentence -->
+                  <div class="text-base text-black leading-loose mb-8">
+                    <div
+                      id="view-certification-sentence"
+                      class="w-full font-normal tracking-normal indent-[1em]"
+                    >
+                      下記の生徒は、令和 8 年 6 月 8 日現在本校第 1
+                      学年に在学していることを証明します。
+                    </div>
+                  </div>
+
+                  <!-- 3. The "Koto" Separator -->
+                  <div class="text-center mb-6">
+                    <span class="text-xl font-bold tracking-[0.5em] px-3 pb-1"
+                      >記</span
+                    >
+                  </div>
+
+                  <!-- 4. Core Details (Grid layout matching historical form patterns) -->
+                  <div class="flex-grow space-y-6 flex flex-col justify-start">
+                    <!-- Detail 1: Student Name Card -->
+                    <div
+                      class="grid grid-cols-12 items-baseline border-b border-slate-300 pb-2"
+                    >
+                      <div
+                        class="col-span-3 text-sm font-bold text-slate-800 tracking-wider whitespace-nowrap"
+                      >
+                        １　生徒氏名
+                      </div>
+                      <div
+                        class="col-span-9 flex flex-wrap justify-between items-baseline pl-4"
+                      >
+                        <span
+                          id="view-student-name"
+                          class="text-2xl font-black text-black whitespace-nowrap tracking-wide"
+                        >
+                          <!-- Student Name -->
+                        </span>
+                        <span class="text-sm text-black whitespace-nowrap">
+                          （保護者氏名　<span
+                            id="view-guardian-name"
+                            class="font-bold"
+                            ><!-- Guardian --></span
+                          >）
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Detail 2: Birth Date Card -->
+                    <div
+                      class="grid grid-cols-12 items-baseline border-b border-slate-300 pb-2"
+                    >
+                      <div
+                        class="col-span-3 text-sm font-bold text-slate-800 tracking-wider whitespace-nowrap"
+                      >
+                        ２　生徒生年月日
+                      </div>
+                      <div class="col-span-9 pl-4">
+                        <span
+                          id="view-student-birth"
+                          class="text-lg font-bold text-black whitespace-nowrap"
+                        >
+                          <!-- Birth Date (Japanese format) -->
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Detail 3: Transfer Info Section (Hidden unless toggled) -->
+                    <div id="view-transfer-section" class="space-y-4 pt-2">
+                      <div
+                        class="text-xs font-semibold text-black tracking-wider border-b border-dashed border-black pb-1 whitespace-nowrap"
+                      >
+                        ※以下は転校による証明発行時のみ記載
+                      </div>
+
+                      <!-- Attendance Status Table -->
+                      <div class="space-y-1.5">
+                        <div
+                          class="text-xs font-bold text-black flex items-center gap-1 whitespace-nowrap"
+                        >
+                          <span
+                            class="inline-block w-1.5 h-1.5 bg-black rounded-full"
+                          ></span>
+                          出席、欠席状況
+                        </div>
+                        <table
+                          class="w-full text-center border-collapse text-xs"
+                        >
+                          <thead>
+                            <tr>
+                              <th
+                                class="border border-slate-400 p-1 font-bold w-16 whitespace-nowrap"
+                              >
+                                区分
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                4
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                5
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                6
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                7
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                8
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                9
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                10
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                11
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                12
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                1
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                2
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-semibold"
+                              >
+                                3
+                              </th>
+                              <th
+                                class="border border-slate-400 p-1 font-bold w-16 whitespace-nowrap"
+                              >
+                                計
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td
+                                class="border border-slate-400 p-1.5 font-bold whitespace-nowrap"
+                              >
+                                出席日数
+                              </td>
+                              <td
+                                id="view-att-4"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-5"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-6"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-7"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-8"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-9"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-10"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-11"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-12"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-1"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-2"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-3"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-att-total"
+                                class="border border-slate-400 p-1 font-bold"
+                              >
+                                0
+                              </td>
+                            </tr>
+                            <tr>
+                              <td
+                                class="border border-slate-400 p-1.5 font-bold whitespace-nowrap"
+                              >
+                                欠席日数
+                              </td>
+                              <td
+                                id="view-abs-4"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-5"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-6"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-7"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-8"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-9"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-10"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-11"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-12"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-1"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-2"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-3"
+                                class="border border-slate-400 p-1 font-medium"
+                              >
+                                0
+                              </td>
+                              <td
+                                id="view-abs-total"
+                                class="border border-slate-400 p-1 font-bold"
+                              >
+                                0
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <!-- Extra Info: Sports center / Tuition aids -->
+                      <div class="grid grid-cols-2 gap-4 text-xs font-medium">
                         <div class="flex items-center gap-1">
-                            <button id="btn-edit-school-info" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all" title="学校情報を編集">
-                                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                                <span>編集</span>
-                            </button>
-                            <button id="btn-save-school-info" class="hidden bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1.5 px-2 rounded-lg flex items-center justify-center gap-1 transition-all" title="学校情報.csvへ上書き保存">
-                                <i data-lucide="save" class="w-3.5 h-3.5"></i>
-                                <span>保存</span>
-                            </button>
+                          <span
+                            class="inline-block w-1.5 h-1.5 bg-slate-700 rounded-full"
+                          ></span>
+                          スポーツ振興センター加入状況：
+                          <span
+                            id="view-sports-badge"
+                            class="font-bold underline underline-offset-2 decoration-slate-500 pl-1 whitespace-nowrap"
+                          >
+                            （ 加入 ）
+                          </span>
                         </div>
+                        <div class="flex items-center gap-1">
+                          <span
+                            class="inline-block w-1.5 h-1.5 bg-slate-700 rounded-full"
+                          ></span>
+                          教育扶助・就学援助受給状況：
+                          <span
+                            id="view-aid-badge"
+                            class="font-bold underline underline-offset-2 decoration-slate-500 pl-1 whitespace-nowrap"
+                          >
+                            （ 就学援助受給中 ）
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div class="space-y-2">
-                        <div>
-                            <label class="control-label">学校名</label>
-                            <input type="text" id="school-name" class="input-text font-semibold" value="福岡市立箱崎中学校" placeholder="例：福岡市立箱崎中学校">
+                  </div>
+
+                  <!-- 5. Signature Footer Block -->
+                  <div
+                    class="mt-8 pt-6 border-t border-black grid grid-cols-12 items-end relative text-base font-normal text-black"
+                  >
+                    <div class="col-span-8 space-y-2">
+                      <!-- Current Date -->
+                      <div
+                        id="view-cert-issue-date"
+                        class="text-base font-normal tracking-normal text-black mb-3 whitespace-nowrap"
+                      >
+                        <!-- Date of issuance -->
+                      </div>
+                      <!-- School info -->
+                      <div class="space-y-1">
+                        <div
+                          class="text-base font-normal text-black whitespace-nowrap flex gap-4"
+                        >
+                          <span
+                            >学校所在地：福岡市<span id="view-school-address"
+                              >東区筥松四丁目２１番２２号</span
+                            ></span
+                          >
                         </div>
-                        <div>
-                            <label class="control-label">学校所在地</label>
-                            <input type="text" id="school-address" class="input-text" value="東区筥松四丁目２１番２２号" placeholder="例：東区筥松四丁目２１番２２号">
+                        <div
+                          class="text-base font-normal text-black whitespace-nowrap flex gap-6"
+                        >
+                          <span
+                            >電話番号：<span id="view-school-phone"
+                              >092-611-2296</span
+                            ></span
+                          >
+                          <span
+                            >FAX番号：<span id="view-school-fax"
+                              >092-611-2297</span
+                            ></span
+                          >
                         </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="control-label">電話番号</label>
-                                <input type="text" id="school-phone" class="input-text text-xs font-mono" value="092-611-2296" placeholder="例：092-611-2296">
-                            </div>
-                            <div>
-                                <label class="control-label">FAX番号</label>
-                                <input type="text" id="school-fax" class="input-text text-xs font-mono" value="092-611-2297" placeholder="例：092-611-2297">
-                            </div>
+                        <div
+                          class="text-base text-black font-normal tracking-normal pt-2 whitespace-nowrap"
+                        >
+                          学校名：福岡県福岡市立<span id="view-school-name"
+                            >箱崎中学校</span
+                          >
                         </div>
-                        <div>
-                            <label class="control-label">学校長名</label>
-                            <input type="text" id="principal-name" class="input-text" value="福岡　花子" placeholder="例：福岡　花子">
+                        <div
+                          class="text-base text-black font-normal tracking-normal flex items-baseline pt-1 whitespace-nowrap"
+                        >
+                          学校長名：<span id="view-principal-name" class="px-2"
+                            >福岡　花子</span
+                          ><span>　　印</span>
                         </div>
+                      </div>
                     </div>
+                  </div>
                 </div>
-
+              </div>
             </div>
-        </section>
-
-        <!-- Right Panel: Immersive Document Preview Area (no headers, maximized) -->
-        <section id="right-pane" class="flex-1 flex flex-col overflow-hidden bg-slate-200 relative">
-            
-            <!-- Realtime PDF Generation Spinner Overlay (placed strictly inside right panel only) -->
-            <div id="pdf-overlay" class="pdf-overlay">
-                <div class="flex flex-col items-center gap-4">
-                    <div class="pdf-spinner"></div>
-                    <p class="text-white font-bold text-sm tracking-wide">PDFを生成中...</p>
-                </div>
-            </div>
-
-            <!-- Absolute Floating Zoom Control Area (Floating in bottom-left corner) -->
-            <div class="floating-zoom flex items-center bg-white/95 border border-slate-300 rounded-lg p-1.5 shadow-lg gap-1.5 select-none">
-                <button id="btn-zoom-out" class="w-7 h-7 flex items-center justify-center hover:bg-slate-100 text-slate-700 rounded transition-all">
-                    <i data-lucide="zoom-out" class="w-4 h-4"></i>
-                </button>
-                <span id="zoom-level-text" class="text-xs font-black text-slate-700 w-12 text-center select-none">100%</span>
-                <button id="btn-zoom-in" class="w-7 h-7 flex items-center justify-center hover:bg-slate-100 text-slate-700 rounded transition-all">
-                    <i data-lucide="zoom-in" class="w-4 h-4"></i>
-                </button>
-                <div class="h-4 w-px bg-slate-300"></div>
-                <button id="btn-zoom-fit" class="text-[10px] font-black px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded transition-all">
-                    FIT
-                </button>
-            </div>
-
-            <!-- Core Canvas Wrapper with CSS Grid Centering -->
-            <div id="preview-container" class="flex-1 overflow-auto bg-slate-200">
-                <div class="preview-wrapper">
-                    <!-- Scaling bounding box container -->
-                    <div class="capture-area-container" style="position: relative;">
-                        <!-- The target A4 sheet of document -->
-                        <div id="school-cert-page" class="pdf-page serif-text p-[50px] flex flex-col justify-between" data-page="0">
-                            
-                            <!-- Master Document Container - Allows dynamic Auto-Density fitting -->
-                            <div class="page-inner flex flex-col h-full justify-between" style="box-sizing: border-box;">
-                                
-                                <!-- 1. Document Header -->
-                                <div class="text-center mb-6 pt-4">
-                                    <h1 class="text-3xl font-bold tracking-[0.5em] text-black pr-[-0.5em]">在学証明書</h1>
-                                </div>
-
-                                <!-- 2. Main Certification Sentence with dynamically underline fields -->
-                                <div class="text-base text-slate-900 leading-loose mb-8">
-                                    <div class="inline-flex flex-wrap items-end w-full gap-y-3">
-                                        <span class="whitespace-nowrap">下記の生徒は、令和</span>
-                                        <span id="view-cert-date-parts" class="border-b border-slate-500 font-medium px-4 text-center min-w-[120px] whitespace-nowrap">
-                                            <!-- Managed by Script: 令和 X 年 Y 月 Z 日 -->
-                                        </span>
-                                        <span id="view-status-addon" class="border-b border-slate-500 font-medium px-2 text-center min-w-[60px] whitespace-nowrap">
-                                            <!-- 現在 or まで -->
-                                        </span>
-                                        <span class="whitespace-nowrap">本校第</span>
-                                        <span id="view-grade" class="border-b border-slate-500 font-bold px-4 text-center min-w-[50px] whitespace-nowrap text-lg">
-                                            <!-- 第 X 学年 -->
-                                        </span>
-                                        <span class="whitespace-nowrap">学年に在学して</span>
-                                        <span id="view-status-verb" class="border-b border-slate-500 font-bold px-4 text-center min-w-[60px] whitespace-nowrap text-lg">
-                                            <!-- いる or いた -->
-                                        </span>
-                                        <span class="whitespace-nowrap">ことを証明します。</span>
-                                    </div>
-                                </div>
-
-                                <!-- 3. The "Koto" Separator -->
-                                <div class="text-center mb-6">
-                                    <span class="text-xl font-bold tracking-[0.5em] border-b-2 border-double border-slate-800 px-3 pb-1">記</span>
-                                </div>
-
-                                <!-- 4. Core Details (Grid layout matching historical form patterns) -->
-                                <div class="flex-grow space-y-6 flex flex-col justify-start">
-                                    
-                                    <!-- Detail 1: Student Name Card -->
-                                    <div class="grid grid-cols-12 items-baseline border-b border-slate-300 pb-2">
-                                        <div class="col-span-3 text-sm font-bold text-slate-800 tracking-wider whitespace-nowrap">１　生徒氏名</div>
-                                        <div class="col-span-9 flex flex-wrap justify-between items-baseline pl-4">
-                                            <span id="view-student-name" class="text-2xl font-black text-black whitespace-nowrap tracking-wide">
-                                                <!-- Student Name -->
-                                            </span>
-                                            <span class="text-sm text-slate-700 whitespace-nowrap">
-                                                （保護者氏名　<span id="view-guardian-name" class="font-bold underline underline-offset-4 decoration-slate-400"><!-- Guardian --></span>）
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <!-- Detail 2: Birth Date Card -->
-                                    <div class="grid grid-cols-12 items-baseline border-b border-slate-300 pb-2">
-                                        <div class="col-span-3 text-sm font-bold text-slate-800 tracking-wider whitespace-nowrap">２　生徒生年月日</div>
-                                        <div class="col-span-9 pl-4">
-                                            <span id="view-student-birth" class="text-lg font-bold text-black whitespace-nowrap">
-                                                <!-- Birth Date (Japanese format) -->
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <!-- Detail 3: Transfer Info Section (Hidden unless toggled) -->
-                                    <div id="view-transfer-section" class="space-y-4 pt-2">
-                                        <div class="text-xs font-semibold text-slate-500 tracking-wider border-b border-dashed border-slate-300 pb-1 whitespace-nowrap">
-                                            ※以下は転校による証明発行時のみ記載
-                                        </div>
-
-                                        <!-- Attendance Status Table -->
-                                        <div class="space-y-1.5">
-                                            <div class="text-xs font-bold text-slate-800 flex items-center gap-1 whitespace-nowrap">
-                                                <span class="inline-block w-1.5 h-1.5 bg-slate-700 rounded-full"></span>
-                                                出席、欠席状況
-                                            </div>
-                                            <table class="w-full text-center border-collapse text-xs">
-                                                <thead>
-                                                    <tr class="bg-slate-50">
-                                                        <th class="border border-slate-400 p-1 font-bold w-16 whitespace-nowrap">区分</th>
-                                                        <th class="border border-slate-400 p-1 font-bold w-12 whitespace-nowrap">月別</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">4</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">5</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">6</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">7</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">8</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">9</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">10</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">11</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">12</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">1</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">2</th>
-                                                        <th class="border border-slate-400 p-1 font-semibold">3</th>
-                                                        <th class="border border-slate-400 p-1 font-bold w-16 whitespace-nowrap bg-slate-100">計</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr>
-                                                        <td class="border border-slate-400 p-1.5 font-bold whitespace-nowrap">出席日数</td>
-                                                        <td class="border border-slate-400 p-1.5 bg-slate-50 whitespace-nowrap"></td>
-                                                        <td id="view-att-4" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-5" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-6" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-7" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-8" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-9" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-10" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-11" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-12" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-1" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-2" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-3" class="border border-slate-400 p-1 font-medium">0</td>
-                                                        <td id="view-att-total" class="border border-slate-400 p-1 font-bold bg-slate-100">0</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td class="border border-slate-400 p-1.5 font-bold whitespace-nowrap">欠席日数</td>
-                                                        <td class="border border-slate-400 p-1.5 bg-slate-50 whitespace-nowrap"></td>
-                                                        <td id="view-abs-4" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-5" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-6" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-7" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-8" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-9" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-10" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-11" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-12" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-1" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-2" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-3" class="border border-slate-400 p-1 text-slate-500 font-medium">0</td>
-                                                        <td id="view-abs-total" class="border border-slate-400 p-1 font-bold bg-slate-100 text-rose-600">0</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-
-                                        <!-- Extra Info: Sports center / Tuition aids -->
-                                        <div class="grid grid-cols-2 gap-4 text-xs font-medium">
-                                            <div class="flex items-center gap-1">
-                                                <span class="inline-block w-1.5 h-1.5 bg-slate-700 rounded-full"></span>
-                                                スポーツ振興センター加入状況：
-                                                <span id="view-sports-badge" class="font-bold underline underline-offset-2 decoration-slate-500 pl-1 whitespace-nowrap">
-                                                    （ 加入 ）
-                                                </span>
-                                            </div>
-                                            <div class="flex items-center gap-1">
-                                                <span class="inline-block w-1.5 h-1.5 bg-slate-700 rounded-full"></span>
-                                                教育扶助・就学援助受給状況：
-                                                <span id="view-aid-badge" class="font-bold underline underline-offset-2 decoration-slate-500 pl-1 whitespace-nowrap">
-                                                    （ 就学援助受給中 ）
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                    </div>
-
-                                </div>
-
-                                <!-- 5. Signature Footer Block -->
-                                <div class="mt-8 pt-6 border-t border-slate-300 grid grid-cols-12 items-end relative">
-                                    <div class="col-span-8 space-y-2">
-                                        <!-- Current Date -->
-                                        <div id="view-cert-issue-date" class="text-sm font-semibold tracking-wide text-black mb-3 whitespace-nowrap">
-                                            <!-- Date of issuance -->
-                                        </div>
-                                        <!-- School info -->
-                                        <div class="space-y-1">
-                                            <div class="text-xs text-slate-700 whitespace-nowrap flex gap-4">
-                                                <span>学校所在地：福岡市<span id="view-school-address">東区筥松四丁目２１番２２号</span></span>
-                                            </div>
-                                            <div class="text-xs text-slate-700 whitespace-nowrap flex gap-6">
-                                                <span>電話番号：<span id="view-school-phone" class="font-mono">092-611-2296</span></span>
-                                                <span>FAX番号：<span id="view-school-fax" class="font-mono">092-611-2297</span></span>
-                                            </div>
-                                            <div class="text-base text-black font-bold tracking-wider pt-2 whitespace-nowrap">
-                                                学校名：福岡県福岡市立<span id="view-school-name" class="text-lg">箱崎中学校</span>
-                                            </div>
-                                            <div class="text-lg text-black font-bold tracking-widest flex items-baseline pt-1 whitespace-nowrap">
-                                                学校長名：<span id="view-principal-name" class="text-xl px-2">福岡　花子</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Official School Stamp Mark -->
-                                    <div class="col-span-4 flex justify-end pb-2">
-                                        <div class="print-seal whitespace-nowrap shadow-sm">
-                                            公印省略
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Footer Indicator -->
-                                <div class="text-[9px] text-slate-400 text-center w-full mt-auto pt-4 whitespace-nowrap" data-page-footer>
-                                    福岡市立中学校・義務教育学校後期課程統一様式 (在学証明書)
-                                </div>
-
-                            </div>
-
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </section>
-
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- App Business & Reconstruction Engine -->
     <script>
-        (function() {
-            // Fukuoka City Junior High School database fallback. The live preset list is loaded from 学校情報.csv.
-            const DEFAULT_SCHOOL_DATABASE = [
-                { id: "1", name: "箱崎中学校", address: "東区筥松四丁目２１番２２号", phone: "092-611-2296", fax: "092-611-2297" },
-                { id: "2", name: "福岡中学校", address: "東区馬出三丁目１１番１号", phone: "092-641-6685", fax: "092-641-6686" },
-                { id: "3", name: "千代中学校", address: "博多区千代四丁目１７番４７号", phone: "092-641-4531", fax: "092-641-4532" },
-                { id: "4", name: "東光中学校", address: "博多区東光二丁目１５番１号", phone: "092-411-2935", fax: "092-411-2936" },
-                { id: "5", name: "博多中学校", address: "博多区対馬小路１３番４０号", phone: "092-281-6644", fax: "092-281-6645" },
-                { id: "7", name: "東住吉中学校", address: "博多区博多駅南二丁目５番１号", phone: "092-431-6064", fax: "092-431-6065" },
-                { id: "8", name: "春吉中学校", address: "南区清水四丁目２１番５０号", phone: "092-551-4411", fax: "092-551-4412" },
-                { id: "9", name: "舞鶴中学校", address: "中央区舞鶴二丁目６番１号", phone: "092-741-4985", fax: "092-741-4986" },
-                { id: "10", name: "高宮中学校", address: "南区大楠三丁目１１番１号", phone: "092-551-4431", fax: "092-551-4432" },
-                { id: "41", name: "香椎第２中学校", address: "東区香住ケ丘一丁目８番１号", phone: "092-661-2073", fax: "092-661-2019" },
-                { id: "42", name: "曰佐中学校", address: "南区曰佐三丁目７番１号", phone: "092-501-2043", fax: "092-501-2959" },
-                { id: "43", name: "原中学校", address: "早良区飯倉四丁目３４番５８号", phone: "092-801-4688", fax: "092-801-4690" },
-                { id: "44", name: "席田中学校", address: "博多区東平尾三丁目３番１号", phone: "092-611-0867", fax: "092-611-0967" },
-                { id: "45", name: "壱岐中学校", address: "西区拾六町二丁目１６番１号", phone: "092-811-0551", phone: "092-811-0551", fax: "092-811-0582" },
-                { id: "46", name: "早良中学校", address: "早良区内野七丁目１番１号", phone: "092-804-2206", fax: "092-804-2215" },
-                { id: "47", name: "多々良中央中学校", address: "東区多々良一丁目５１番１号", phone: "092-691-3911", fax: "092-691-3912" },
-                { id: "48", name: "原北中学校", address: "早良区小田部七丁目１１番１号", phone: "092-831-2331", fax: "092-831-2332" }
-            ];
-            let SCHOOL_DATABASE = [];
-            let schoolCsvFileHandle = null;
-            let schoolCsvLoaded = false;
-            let isSchoolInfoEditing = false;
+      (function () {
+        // The school preset list is loaded from 学校情報.csv.
+        let SCHOOL_DATABASE = [];
+        let schoolCsvFileHandle = null;
+        let schoolCsvLoaded = false;
+        let isSchoolInfoEditing = false;
 
-            // Default Sheet Dimensions
-            const PAGE_SIZES = { w: 794, h: 1123, mmW: 210, mmH: 297 }; // A4
-            let currentPageSize = PAGE_SIZES;
-            let currentScale = 1.0;
+        // Default Sheet Dimensions
+        const PAGE_SIZES = { w: 794, h: 1123, mmW: 210, mmH: 297 }; // A4
+        let currentPageSize = PAGE_SIZES;
+        let currentScale = 1.0;
 
-            // Application State representing all inputs in form
-            let state = {
-                schoolPreset: "1", // Defaults to Hakozaki JHS
-                certYear: 8,
-                certMonth: 6,
-                certDay: 8,
-                studentGrade: "1",
-                enrollStatus: "current",
-                untilYear: 8,
-                untilMonth: 4,
-                untilDay: 1,
-                studentName: "福岡　一郎",
-                guardianName: "福岡　太郎",
-                birthEra: "平成",
-                birthYear: 21,
-                birthMonth: 5,
-                birthDay: 1,
-                showTransferSection: true,
-                sportsStatus: "加入",
-                aidStatus: "就学援助受給中",
-                schoolName: "福岡市立箱崎中学校",
-                schoolAddress: "東区筥松四丁目２１番２２号",
-                schoolPhone: "092-611-2296",
-                schoolFax: "092-611-2297",
-                principalName: "福岡　花子",
-                attendance: {
-                    att: [15, 15, 15, 15, 5, 15, 15, 15, 15, 15, 15, 15], // 4 to 3
-                    abs: [0, 0, 3, 0, 0, 1, 0, 1, 0, 0, 0, 0]
-                }
+        // Application State representing all inputs in form
+        let state = {
+          schoolPreset: "1", // Defaults to Hakozaki JHS
+          certYear: 8,
+          certMonth: 6,
+          certDay: 8,
+          studentGrade: "1",
+          enrollStatus: "current",
+          untilYear: 8,
+          untilMonth: 4,
+          untilDay: 1,
+          studentName: "福岡　一郎",
+          guardianName: "福岡　太郎",
+          birthEra: "平成",
+          birthYear: 21,
+          birthMonth: 5,
+          birthDay: 1,
+          showTransferSection: true,
+          sportsStatus: "加入",
+          aidStatus: "就学援助受給中",
+          schoolName: "福岡市立箱崎中学校",
+          schoolAddress: "東区筥松四丁目２１番２２号",
+          schoolPhone: "092-611-2296",
+          schoolFax: "092-611-2297",
+          principalName: "福岡　花子",
+          attendance: {
+            att: ["", "", "", "", "", "", "", "", "", "", "", ""], // 4 to 3
+            abs: ["", "", "", "", "", "", "", "", "", "", "", ""],
+          },
+        };
+
+        // Multi-byte Safe base64 Helpers
+        function safeBase64Encode(str) {
+          return btoa(
+            encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+              String.fromCharCode("0x" + p1),
+            ),
+          );
+        }
+        function safeBase64Decode(str) {
+          return decodeURIComponent(
+            atob(str)
+              .split("")
+              .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+              .join(""),
+          );
+        }
+
+        function parseCsvLine(line) {
+          const result = [];
+          let current = "";
+          let inQuotes = false;
+
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const next = line[i + 1];
+
+            if (char === '"' && inQuotes && next === '"') {
+              current += '"';
+              i++;
+            } else if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === "," && !inQuotes) {
+              result.push(current);
+              current = "";
+            } else {
+              current += char;
+            }
+          }
+
+          result.push(current);
+          return result;
+        }
+
+        function parseSchoolCsv(csvText) {
+          return csvText
+            .replace(/^\uFEFF/, "")
+            .split(/\r?\n/)
+            .map((line) => parseCsvLine(line))
+            .filter((cols) => cols.some((value) => value.trim() !== ""))
+            .filter((cols) => cols[0] && cols[1])
+            .map((cols) => ({
+              id: cols[0].trim(),
+              name: cols[1].trim(),
+              address: (cols[2] || "").trim(),
+              phone: (cols[3] || "").trim(),
+              fax: (cols[4] || "").trim(),
+            }));
+        }
+
+        function csvEscape(value) {
+          const text = String(value || "");
+          return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        }
+
+        function buildSchoolCsv() {
+          const rows = SCHOOL_DATABASE.map((sch) => [
+            sch.id,
+            sch.name,
+            sch.address,
+            sch.phone,
+            sch.fax,
+          ]);
+          return (
+            rows.map((row) => row.map(csvEscape).join(",")).join("\r\n") +
+            "\r\n"
+          );
+        }
+
+        function getPresetSchoolName() {
+          return state.schoolName.replace(/^福岡市立\s*/, "").trim();
+        }
+
+        function populateSchoolPresetSelect() {
+          const selectEl = document.getElementById("school-preset-select");
+          selectEl.innerHTML =
+            '<option value="custom">— カスタム手入力する —</option>';
+
+          SCHOOL_DATABASE.forEach((sch) => {
+            const opt = document.createElement("option");
+            opt.value = sch.id;
+            opt.innerText = `福岡市立 ${sch.name}`;
+            selectEl.appendChild(opt);
+          });
+
+          selectEl.value = SCHOOL_DATABASE.some(
+            (sch) => sch.id === state.schoolPreset,
+          )
+            ? state.schoolPreset
+            : "custom";
+        }
+
+        async function loadSchoolDatabaseFromCsv(fileHandle = null) {
+          try {
+            let csvText = "";
+
+            if (fileHandle) {
+              schoolCsvFileHandle = fileHandle;
+              const file = await schoolCsvFileHandle.getFile();
+              csvText = await file.text();
+            } else {
+              const response = await fetch("学校情報.csv", {
+                cache: "no-store",
+              });
+              if (!response.ok)
+                throw new Error(`CSV fetch failed: ${response.status}`);
+              csvText = await response.text();
+            }
+
+            const parsed = parseSchoolCsv(csvText);
+            if (!parsed.length) throw new Error("CSV has no school rows");
+
+            SCHOOL_DATABASE = parsed;
+            schoolCsvLoaded = true;
+            populateSchoolPresetSelect();
+            applyCurrentPresetIfAvailable();
+            showNotification("学校情報.csvを読み込みました");
+            return true;
+          } catch (err) {
+            console.warn("学校情報.csvの読み込みに失敗しました", err);
+            SCHOOL_DATABASE = [];
+            schoolCsvLoaded = false;
+            populateSchoolPresetSelect();
+            showNotification(
+              "index.htmlと同じフォルダに学校情報.csvが見つかりません。学校情報.csvを読み込みボタンから場所を指定してください",
+              true,
+            );
+            return false;
+          }
+        }
+
+        function applyCurrentPresetIfAvailable() {
+          const targetSch = SCHOOL_DATABASE.find(
+            (x) => x.id === state.schoolPreset,
+          );
+          if (!targetSch) return;
+          state.schoolName = `福岡市立${targetSch.name}`;
+          state.schoolAddress = targetSch.address;
+          state.schoolPhone = targetSch.phone;
+          state.schoolFax = targetSch.fax;
+        }
+
+        async function chooseSchoolCsvFile() {
+          if (!window.showOpenFilePicker) {
+            showNotification(
+              "このブラウザではCSVの直接読み込み・上書き保存に対応していません",
+              true,
+            );
+            return;
+          }
+
+          try {
+            const [handle] = await window.showOpenFilePicker({
+              types: [
+                {
+                  description: "CSV files",
+                  accept: { "text/csv": [".csv"] },
+                },
+              ],
+              multiple: false,
+            });
+            await loadSchoolDatabaseFromCsv(handle);
+            syncStateToForm();
+            updatePreview();
+          } catch (err) {
+            if (err.name !== "AbortError") {
+              console.error("CSV file picker failed", err);
+              showNotification("学校情報.csvの選択に失敗しました", true);
+            }
+          }
+        }
+
+        function setSchoolInfoEditing(enabled) {
+          isSchoolInfoEditing = enabled;
+          document
+            .getElementById("btn-edit-school-info")
+            .classList.toggle("hidden", enabled);
+          document
+            .getElementById("btn-save-school-info")
+            .classList.toggle("hidden", !enabled);
+        }
+
+        async function saveSchoolInfoToCsv() {
+          syncFormToState();
+
+          if (!schoolCsvLoaded) {
+            showNotification(
+              "先に学校情報.csvを読み込んでから保存してください",
+              true,
+            );
+            return;
+          }
+
+          let targetSch = SCHOOL_DATABASE.find(
+            (x) => x.id === state.schoolPreset,
+          );
+          if (!targetSch) {
+            const nextId = String(
+              Math.max(
+                0,
+                ...SCHOOL_DATABASE.map((sch) => parseInt(sch.id, 10) || 0),
+              ) + 1,
+            );
+            targetSch = {
+              id: nextId,
+              name: "",
+              address: "",
+              phone: "",
+              fax: "",
             };
+            SCHOOL_DATABASE.push(targetSch);
+            state.schoolPreset = nextId;
+          }
 
-            // Multi-byte Safe base64 Helpers
-            function safeBase64Encode(str) {
-                return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
-                    (_, p1) => String.fromCharCode('0x' + p1)));
-            }
-            function safeBase64Decode(str) {
-                return decodeURIComponent(atob(str).split('').map(c =>
-                    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-            }
+          targetSch.name = getPresetSchoolName();
+          targetSch.address = state.schoolAddress.trim();
+          targetSch.phone = state.schoolPhone.trim();
+          targetSch.fax = state.schoolFax.trim();
 
-            function parseCsvLine(line) {
-                const result = [];
-                let current = '';
-                let inQuotes = false;
-
-                for (let i = 0; i < line.length; i++) {
-                    const char = line[i];
-                    const next = line[i + 1];
-
-                    if (char === '"' && inQuotes && next === '"') {
-                        current += '"';
-                        i++;
-                    } else if (char === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (char === ',' && !inQuotes) {
-                        result.push(current);
-                        current = '';
-                    } else {
-                        current += char;
-                    }
-                }
-
-                result.push(current);
-                return result;
+          try {
+            if (!schoolCsvFileHandle) {
+              if (!window.showSaveFilePicker) {
+                showNotification(
+                  "CSVの上書き保存には対応ブラウザが必要です",
+                  true,
+                );
+                return;
+              }
+              schoolCsvFileHandle = await window.showSaveFilePicker({
+                suggestedName: "学校情報.csv",
+                types: [
+                  {
+                    description: "CSV files",
+                    accept: { "text/csv": [".csv"] },
+                  },
+                ],
+              });
             }
 
-            function parseSchoolCsv(csvText) {
-                return csvText
-                    .replace(/^\uFEFF/, '')
-                    .split(/\r?\n/)
-                    .map(line => parseCsvLine(line))
-                    .filter(cols => cols.some(value => value.trim() !== ''))
-                    .filter(cols => cols[0] && cols[1])
-                    .map(cols => ({
-                        id: cols[0].trim(),
-                        name: cols[1].trim(),
-                        address: (cols[2] || '').trim(),
-                        phone: (cols[3] || '').trim(),
-                        fax: (cols[4] || '').trim()
-                    }));
+            const writable = await schoolCsvFileHandle.createWritable();
+            await writable.write(buildSchoolCsv());
+            await writable.close();
+
+            populateSchoolPresetSelect();
+            syncStateToForm();
+            updatePreview();
+            setSchoolInfoEditing(false);
+            showNotification("学校情報.csvへ学校情報を上書き保存しました");
+          } catch (err) {
+            if (err.name !== "AbortError") {
+              console.error("CSV save failed", err);
+              showNotification("学校情報.csvへの保存に失敗しました", true);
             }
+          }
+        }
 
-            function csvEscape(value) {
-                const text = String(value || '');
-                return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        // Initialize App
+        async function init() {
+          await loadSchoolDatabaseFromCsv();
+          // Apply initial state if reconstruction payload exists
+          const sessionPayload = sessionStorage.getItem(
+            "__MAJIN_PDF_RESTORE__",
+          );
+          if (sessionPayload) {
+            try {
+              const parsed = JSON.parse(sessionPayload);
+              state = { ...state, ...parsed };
+              sessionStorage.removeItem("__MAJIN_PDF_RESTORE__");
+              showNotification("前回の保存データから状態を復元しました");
+            } catch (e) {
+              console.error("Reconstruction parsing error", e);
             }
+          } else if (
+            typeof __EMBEDDED_DATA__ !== "undefined" &&
+            __EMBEDDED_DATA__
+          ) {
+            state = { ...state, ...__EMBEDDED_DATA__ };
+          }
 
-            function buildSchoolCsv() {
-                const rows = SCHOOL_DATABASE.map(sch => [
-                    sch.id,
-                    sch.name,
-                    sch.address,
-                    sch.phone,
-                    sch.fax
-                ]);
-                return rows.map(row => row.map(csvEscape).join(',')).join('\r\n') + '\r\n';
-            }
+          populateSchoolPresetSelect();
+          syncStateToForm();
+          setupEventListeners();
+          updatePreview();
+          adjustZoomToFit();
 
-            function getPresetSchoolName() {
-                return state.schoolName.replace(/^福岡市立\s*/, '').trim();
-            }
+          // Initialize icons
+          lucide.createIcons();
+        }
 
-            function populateSchoolPresetSelect() {
-                const selectEl = document.getElementById('school-preset-select');
-                selectEl.innerHTML = '<option value="custom">— カスタム手入力する —</option>';
+        // Bind State variables to Input fields values
+        function syncStateToForm() {
+          document.getElementById("school-preset-select").value =
+            state.schoolPreset;
+          document.getElementById("cert-year").value = state.certYear;
+          document.getElementById("cert-month").value = state.certMonth;
+          document.getElementById("cert-day").value = state.certDay;
+          document.getElementById("student-grade").value = state.studentGrade;
+          document.getElementById("enroll-status").value = state.enrollStatus;
+          document.getElementById("until-year").value = state.untilYear;
+          document.getElementById("until-month").value = state.untilMonth;
+          document.getElementById("until-day").value = state.untilDay;
+          document.getElementById("student-name").value = state.studentName;
+          document.getElementById("guardian-name").value = state.guardianName;
+          document.getElementById("birth-era").value = state.birthEra;
+          document.getElementById("birth-year").value = state.birthYear;
+          document.getElementById("birth-month").value = state.birthMonth;
+          document.getElementById("birth-day").value = state.birthDay;
+          document.getElementById("show-transfer-section").checked =
+            state.showTransferSection;
+          document.getElementById("sports-status").value = state.sportsStatus;
+          document.getElementById("aid-status").value = state.aidStatus;
+          document.getElementById("school-name").value = state.schoolName;
+          document.getElementById("school-address").value = state.schoolAddress;
+          document.getElementById("school-phone").value = state.schoolPhone;
+          document.getElementById("school-fax").value = state.schoolFax;
+          document.getElementById("principal-name").value = state.principalName;
 
-                SCHOOL_DATABASE.forEach(sch => {
-                    const opt = document.createElement('option');
-                    opt.value = sch.id;
-                    opt.innerText = `福岡市立 ${sch.name}`;
-                    selectEl.appendChild(opt);
-                });
+          // Loop month attendance values
+          const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+          months.forEach((m, i) => {
+            document.getElementById(`att-${m}`).value = state.attendance.att[i];
+            document.getElementById(`abs-${m}`).value = state.attendance.abs[i];
+          });
 
-                selectEl.value = SCHOOL_DATABASE.some(sch => sch.id === state.schoolPreset)
-                    ? state.schoolPreset
-                    : 'custom';
-            }
+          toggleEnrollUntilContainer();
+          toggleTransferContainer();
+          updateAttendanceInputAvailability();
+        }
 
-            async function loadSchoolDatabaseFromCsv(fileHandle = null) {
-                try {
-                    let csvText = '';
+        function syncFormToState() {
+          state.schoolPreset = document.getElementById(
+            "school-preset-select",
+          ).value;
+          state.certYear =
+            parseInt(document.getElementById("cert-year").value) || 1;
+          state.certMonth =
+            parseInt(document.getElementById("cert-month").value) || 1;
+          state.certDay =
+            parseInt(document.getElementById("cert-day").value) || 1;
+          state.studentGrade = document.getElementById("student-grade").value;
+          state.enrollStatus = document.getElementById("enroll-status").value;
+          state.untilYear =
+            parseInt(document.getElementById("until-year").value) || 1;
+          state.untilMonth =
+            parseInt(document.getElementById("until-month").value) || 1;
+          state.untilDay =
+            parseInt(document.getElementById("until-day").value) || 1;
+          state.studentName = document.getElementById("student-name").value;
+          state.guardianName = document.getElementById("guardian-name").value;
+          state.birthEra = document.getElementById("birth-era").value;
+          state.birthYear =
+            parseInt(document.getElementById("birth-year").value) || 1;
+          state.birthMonth =
+            parseInt(document.getElementById("birth-month").value) || 1;
+          state.birthDay =
+            parseInt(document.getElementById("birth-day").value) || 1;
+          state.showTransferSection = document.getElementById(
+            "show-transfer-section",
+          ).checked;
+          state.sportsStatus = document.getElementById("sports-status").value;
+          state.aidStatus = document.getElementById("aid-status").value;
+          state.schoolName = document.getElementById("school-name").value;
+          state.schoolAddress = document.getElementById("school-address").value;
+          state.schoolPhone = document.getElementById("school-phone").value;
+          state.schoolFax = document.getElementById("school-fax").value;
+          state.principalName = document.getElementById("principal-name").value;
 
-                    if (fileHandle) {
-                        schoolCsvFileHandle = fileHandle;
-                        const file = await schoolCsvFileHandle.getFile();
-                        csvText = await file.text();
-                    } else {
-                        const response = await fetch('学校情報.csv', { cache: 'no-store' });
-                        if (!response.ok) throw new Error(`CSV fetch failed: ${response.status}`);
-                        csvText = await response.text();
-                    }
+          const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+          months.forEach((m, i) => {
+            const attEl = document.getElementById(`att-${m}`);
+            const absEl = document.getElementById(`abs-${m}`);
+            state.attendance.att[i] = attEl.disabled
+              ? ""
+              : attEl.value.trim() === ""
+                ? ""
+                : parseInt(attEl.value, 10) || 0;
+            state.attendance.abs[i] = absEl.disabled
+              ? ""
+              : absEl.value.trim() === ""
+                ? ""
+                : parseInt(absEl.value, 10) || 0;
+          });
+        }
 
-                    const parsed = parseSchoolCsv(csvText);
-                    if (!parsed.length) throw new Error('CSV has no school rows');
+        // Toggles visibility of input boxes safely
+        function toggleEnrollUntilContainer() {
+          const el = document.getElementById("enroll-until-date-container");
+          if (state.enrollStatus === "until") {
+            el.classList.remove("hidden");
+          } else {
+            el.classList.add("hidden");
+          }
+        }
 
-                    SCHOOL_DATABASE = parsed;
-                    schoolCsvLoaded = true;
-                    populateSchoolPresetSelect();
-                    applyCurrentPresetIfAvailable();
-                    showNotification('学校情報.csvを読み込みました');
-                    return true;
-                } catch (err) {
-                    console.warn('学校情報.csvの読み込みに失敗しました', err);
-                    SCHOOL_DATABASE = DEFAULT_SCHOOL_DATABASE.slice();
-                    schoolCsvLoaded = false;
-                    populateSchoolPresetSelect();
-                    applyCurrentPresetIfAvailable();
-                    showNotification('学校情報.csvを自動読み込みできませんでした。必要に応じてCSVを選択してください', true);
-                    return false;
-                }
-            }
+        function toggleTransferContainer() {
+          const el = document.getElementById("transfer-inputs-container");
+          if (state.showTransferSection) {
+            el.classList.remove("hidden");
+          } else {
+            el.classList.add("hidden");
+          }
+        }
 
-            function applyCurrentPresetIfAvailable() {
-                const targetSch = SCHOOL_DATABASE.find(x => x.id === state.schoolPreset);
-                if (!targetSch) return;
-                state.schoolName = `福岡市立${targetSch.name}`;
-                state.schoolAddress = targetSch.address;
-                state.schoolPhone = targetSch.phone;
-                state.schoolFax = targetSch.fax;
-            }
+        function fiscalMonthIndex(month) {
+          return month >= 4 ? month - 4 : month + 8;
+        }
 
-            async function chooseSchoolCsvFile() {
-                if (!window.showOpenFilePicker) {
-                    showNotification('このブラウザではCSVの直接読み込み・上書き保存に対応していません', true);
-                    return;
-                }
+        function isAfterCertMonth(month) {
+          return fiscalMonthIndex(month) > fiscalMonthIndex(state.certMonth);
+        }
 
-                try {
-                    const [handle] = await window.showOpenFilePicker({
-                        types: [{
-                            description: 'CSV files',
-                            accept: { 'text/csv': ['.csv'] }
-                        }],
-                        multiple: false
-                    });
-                    await loadSchoolDatabaseFromCsv(handle);
-                    syncStateToForm();
-                    updatePreview();
-                } catch (err) {
-                    if (err.name !== 'AbortError') {
-                        console.error('CSV file picker failed', err);
-                        showNotification('学校情報.csvの選択に失敗しました', true);
-                    }
-                }
-            }
+        function updateAttendanceInputAvailability() {
+          const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+          months.forEach((m, i) => {
+            const disabled = isAfterCertMonth(m);
+            ["att", "abs"].forEach((type) => {
+              const el = document.getElementById(`${type}-${m}`);
+              if (!el) return;
+              el.disabled = disabled;
+              el.classList.toggle("bg-slate-100", disabled);
+              el.classList.toggle("text-slate-400", disabled);
+              el.classList.toggle("cursor-not-allowed", disabled);
+              if (disabled) {
+                el.value = "";
+                state.attendance[type][i] = "";
+              }
+            });
+          });
+        }
 
-            function setSchoolInfoEditing(enabled) {
-                isSchoolInfoEditing = enabled;
-                document.getElementById('btn-edit-school-info').classList.toggle('hidden', enabled);
-                document.getElementById('btn-save-school-info').classList.toggle('hidden', !enabled);
-            }
+        // Setup input events dynamically (avoid inline handlers to stop global pollution)
+        function setupEventListeners() {
+          const inputs = [
+            "cert-year",
+            "cert-month",
+            "cert-day",
+            "student-grade",
+            "enroll-status",
+            "until-year",
+            "until-month",
+            "until-day",
+            "student-name",
+            "guardian-name",
+            "birth-era",
+            "birth-year",
+            "birth-month",
+            "birth-day",
+            "show-transfer-section",
+            "sports-status",
+            "aid-status",
+            "school-name",
+            "school-address",
+            "school-phone",
+            "school-fax",
+            "principal-name",
+          ];
 
-            async function saveSchoolInfoToCsv() {
+          inputs.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.addEventListener("input", () => {
                 syncFormToState();
-
-                if (!schoolCsvLoaded) {
-                    showNotification('先に学校情報.csvを読み込んでから保存してください', true);
-                    return;
-                }
-
-                let targetSch = SCHOOL_DATABASE.find(x => x.id === state.schoolPreset);
-                if (!targetSch) {
-                    const nextId = String(Math.max(0, ...SCHOOL_DATABASE.map(sch => parseInt(sch.id, 10) || 0)) + 1);
-                    targetSch = { id: nextId, name: '', address: '', phone: '', fax: '' };
-                    SCHOOL_DATABASE.push(targetSch);
-                    state.schoolPreset = nextId;
-                }
-
-                targetSch.name = getPresetSchoolName();
-                targetSch.address = state.schoolAddress.trim();
-                targetSch.phone = state.schoolPhone.trim();
-                targetSch.fax = state.schoolFax.trim();
-
-                try {
-                    if (!schoolCsvFileHandle) {
-                        if (!window.showSaveFilePicker) {
-                            showNotification('CSVの上書き保存には対応ブラウザが必要です', true);
-                            return;
-                        }
-                        schoolCsvFileHandle = await window.showSaveFilePicker({
-                            suggestedName: '学校情報.csv',
-                            types: [{
-                                description: 'CSV files',
-                                accept: { 'text/csv': ['.csv'] }
-                            }]
-                        });
-                    }
-
-                    const writable = await schoolCsvFileHandle.createWritable();
-                    await writable.write(buildSchoolCsv());
-                    await writable.close();
-
-                    populateSchoolPresetSelect();
-                    syncStateToForm();
-                    updatePreview();
-                    setSchoolInfoEditing(false);
-                    showNotification('学校情報.csvへ学校情報を上書き保存しました');
-                } catch (err) {
-                    if (err.name !== 'AbortError') {
-                        console.error('CSV save failed', err);
-                        showNotification('学校情報.csvへの保存に失敗しました', true);
-                    }
-                }
-            }
-
-            // Initialize App
-            async function init() {
-                await loadSchoolDatabaseFromCsv();
-                // Apply initial state if reconstruction payload exists
-                const sessionPayload = sessionStorage.getItem('__MAJIN_PDF_RESTORE__');
-                if (sessionPayload) {
-                    try {
-                        const parsed = JSON.parse(sessionPayload);
-                        state = { ...state, ...parsed };
-                        sessionStorage.removeItem('__MAJIN_PDF_RESTORE__');
-                        showNotification("前回の保存データから状態を復元しました");
-                    } catch (e) {
-                        console.error("Reconstruction parsing error", e);
-                    }
-                } else if (typeof __EMBEDDED_DATA__ !== 'undefined' && __EMBEDDED_DATA__) {
-                    state = { ...state, ...__EMBEDDED_DATA__ };
-                }
-
-                populateSchoolPresetSelect();
-                syncStateToForm();
-                setupEventListeners();
-                updatePreview();
-                adjustZoomToFit();
-
-                // Initialize icons
-                lucide.createIcons();
-            }
-
-            // Bind State variables to Input fields values
-            function syncStateToForm() {
-                document.getElementById('school-preset-select').value = state.schoolPreset;
-                document.getElementById('cert-year').value = state.certYear;
-                document.getElementById('cert-month').value = state.certMonth;
-                document.getElementById('cert-day').value = state.certDay;
-                document.getElementById('student-grade').value = state.studentGrade;
-                document.getElementById('enroll-status').value = state.enrollStatus;
-                document.getElementById('until-year').value = state.untilYear;
-                document.getElementById('until-month').value = state.untilMonth;
-                document.getElementById('until-day').value = state.untilDay;
-                document.getElementById('student-name').value = state.studentName;
-                document.getElementById('guardian-name').value = state.guardianName;
-                document.getElementById('birth-era').value = state.birthEra;
-                document.getElementById('birth-year').value = state.birthYear;
-                document.getElementById('birth-month').value = state.birthMonth;
-                document.getElementById('birth-day').value = state.birthDay;
-                document.getElementById('show-transfer-section').checked = state.showTransferSection;
-                document.getElementById('sports-status').value = state.sportsStatus;
-                document.getElementById('aid-status').value = state.aidStatus;
-                document.getElementById('school-name').value = state.schoolName;
-                document.getElementById('school-address').value = state.schoolAddress;
-                document.getElementById('school-phone').value = state.schoolPhone;
-                document.getElementById('school-fax').value = state.schoolFax;
-                document.getElementById('principal-name').value = state.principalName;
-
-                // Loop month attendance values
-                const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
-                months.forEach((m, i) => {
-                    document.getElementById(`att-${m}`).value = state.attendance.att[i];
-                    document.getElementById(`abs-${m}`).value = state.attendance.abs[i];
-                });
-
                 toggleEnrollUntilContainer();
                 toggleTransferContainer();
+                updateAttendanceInputAvailability();
+                updatePreview();
+              });
+              el.addEventListener("change", () => {
+                syncFormToState();
+                toggleEnrollUntilContainer();
+                toggleTransferContainer();
+                updateAttendanceInputAvailability();
+                updatePreview();
+              });
             }
+          });
 
-            function syncFormToState() {
-                state.schoolPreset = document.getElementById('school-preset-select').value;
-                state.certYear = parseInt(document.getElementById('cert-year').value) || 1;
-                state.certMonth = parseInt(document.getElementById('cert-month').value) || 1;
-                state.certDay = parseInt(document.getElementById('cert-day').value) || 1;
-                state.studentGrade = document.getElementById('student-grade').value;
-                state.enrollStatus = document.getElementById('enroll-status').value;
-                state.untilYear = parseInt(document.getElementById('until-year').value) || 1;
-                state.untilMonth = parseInt(document.getElementById('until-month').value) || 1;
-                state.untilDay = parseInt(document.getElementById('until-day').value) || 1;
-                state.studentName = document.getElementById('student-name').value;
-                state.guardianName = document.getElementById('guardian-name').value;
-                state.birthEra = document.getElementById('birth-era').value;
-                state.birthYear = parseInt(document.getElementById('birth-year').value) || 1;
-                state.birthMonth = parseInt(document.getElementById('birth-month').value) || 1;
-                state.birthDay = parseInt(document.getElementById('birth-day').value) || 1;
-                state.showTransferSection = document.getElementById('show-transfer-section').checked;
-                state.sportsStatus = document.getElementById('sports-status').value;
-                state.aidStatus = document.getElementById('aid-status').value;
-                state.schoolName = document.getElementById('school-name').value;
-                state.schoolAddress = document.getElementById('school-address').value;
-                state.schoolPhone = document.getElementById('school-phone').value;
-                state.schoolFax = document.getElementById('school-fax').value;
-                state.principalName = document.getElementById('principal-name').value;
-
-                const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
-                months.forEach((m, i) => {
-                    state.attendance.att[i] = parseInt(document.getElementById(`att-${m}`).value) || 0;
-                    state.attendance.abs[i] = parseInt(document.getElementById(`abs-${m}`).value) || 0;
+          // Attach attendance listeners
+          const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+          months.forEach((m) => {
+            ["att", "abs"].forEach((type) => {
+              const el = document.getElementById(`${type}-${m}`);
+              if (el) {
+                el.addEventListener("input", () => {
+                  syncFormToState();
+                  updatePreview();
                 });
-            }
+              }
+            });
+          });
 
-            // Toggles visibility of input boxes safely
-            function toggleEnrollUntilContainer() {
-                const el = document.getElementById('enroll-until-date-container');
-                if (state.enrollStatus === 'until') {
-                    el.classList.remove('hidden');
-                } else {
-                    el.classList.add('hidden');
+          // Preset selector handler
+          document
+            .getElementById("school-preset-select")
+            .addEventListener("change", (e) => {
+              const val = e.target.value;
+              if (val !== "custom") {
+                const targetSch = SCHOOL_DATABASE.find((x) => x.id === val);
+                if (targetSch) {
+                  state.schoolPreset = val;
+                  state.schoolName = `福岡市立${targetSch.name}`;
+                  state.schoolAddress = targetSch.address;
+                  state.schoolPhone = targetSch.phone;
+                  state.schoolFax = targetSch.fax;
+                  syncStateToForm();
+                  updatePreview();
+                  setSchoolInfoEditing(false);
                 }
+              } else {
+                state.schoolPreset = "custom";
+                syncFormToState();
+                updatePreview();
+              }
+            });
+
+          document
+            .getElementById("btn-load-school-csv")
+            .addEventListener("click", chooseSchoolCsvFile);
+          document
+            .getElementById("btn-edit-school-info")
+            .addEventListener("click", () => {
+              setSchoolInfoEditing(true);
+            });
+          document
+            .getElementById("btn-save-school-info")
+            .addEventListener("click", saveSchoolInfoToCsv);
+
+          // Zoom control attachments
+          document
+            .getElementById("btn-zoom-in")
+            .addEventListener("click", () => {
+              adjustZoom(currentScale + 0.1);
+            });
+          document
+            .getElementById("btn-zoom-out")
+            .addEventListener("click", () => {
+              adjustZoom(currentScale - 0.1);
+            });
+          document
+            .getElementById("btn-zoom-fit")
+            .addEventListener("click", () => {
+              adjustZoomToFit();
+            });
+
+          // Document/Export features
+          document
+            .getElementById("btn-download")
+            .addEventListener("click", downloadPDF);
+          document
+            .getElementById("btn-copy-code")
+            .addEventListener("click", copyCleanSourceToClipboard);
+          document
+            .getElementById("btn-open-newtab")
+            .addEventListener("click", openCleanSourceInNewTab);
+
+          // Reconstructive Upload handlers
+          document
+            .getElementById("btn-restore-upload")
+            .addEventListener("change", handleRestoreUpload);
+
+          window.addEventListener("resize", () => {
+            adjustZoomToFit();
+            autoAdjustDensity();
+          });
+
+          // Font loading complete re-fitting triggers
+          document.fonts.ready.then(() => {
+            autoAdjustDensity();
+          });
+        }
+
+        // High Precision Scale & Fit algorithms
+        function adjustZoom(target) {
+          currentScale = Math.max(0.2, Math.min(2.5, target));
+          updateZoomUI();
+        }
+
+        function adjustZoomToFit() {
+          const pane = document.getElementById("right-pane");
+          if (!pane) return;
+          // Leave proper visual padding borders
+          const paddingSpace = 40;
+          const availableW = pane.clientWidth - paddingSpace;
+          const availableH = pane.clientHeight - paddingSpace;
+          const scaleW = availableW / currentPageSize.w;
+          const scaleH = availableH / currentPageSize.h;
+
+          // Match the minimum limiting axis scale
+          const finalScale = Math.min(scaleW, scaleH, 1.0);
+          currentScale = Math.floor(finalScale * 100) / 100; // Keep scale values readable
+          updateZoomUI();
+        }
+
+        function updateZoomUI() {
+          const page = document.getElementById("school-cert-page");
+          const container = page.closest(".capture-area-container");
+
+          // Strict rule compliance: Use scale scaling and force update wrapper box bounds simultaneously
+          page.style.transform = `scale(${currentScale})`;
+          if (container) {
+            container.style.width = `${currentPageSize.w * currentScale}px`;
+            container.style.height = `${currentPageSize.h * currentScale}px`;
+          }
+
+          document.getElementById("zoom-level-text").innerText =
+            `${Math.round(currentScale * 100)}%`;
+        }
+
+        // Realtime rendering view syncer
+        function updatePreview() {
+          // Cert Date
+          const certDateStr = `令和 ${state.certYear} 年 ${state.certMonth} 月 ${state.certDay} 日`;
+          const viewCertificationSentence = document.getElementById(
+            "view-certification-sentence",
+          );
+          let statusAddon = "";
+          let statusVerb = "";
+          if (state.enrollStatus === "current") {
+            statusAddon = "現在";
+            statusVerb = "いる";
+          } else {
+            statusAddon = "まで";
+            statusVerb = "いた";
+          }
+
+          viewCertificationSentence.innerText = `下記の生徒は、${certDateStr}${statusAddon}本校第 ${state.studentGrade} 学年に在学して${statusVerb}ことを証明します。`;
+
+          // Student names
+          document.getElementById("view-student-name").innerText =
+            state.studentName;
+          document.getElementById("view-guardian-name").innerText =
+            state.guardianName || "　　　　　　";
+
+          // Birthday computation
+          const birthStr = `${state.birthEra} ${state.birthYear} 年 ${state.birthMonth} 月 ${state.birthDay} 日生`;
+          document.getElementById("view-student-birth").innerText = birthStr;
+
+          // Toggling of transfer section preview
+          const transferView = document.getElementById("view-transfer-section");
+          if (state.showTransferSection) {
+            transferView.style.display = "block";
+
+            // Sync attendance monthly grids
+            const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+            let attTotal = 0;
+            let absTotal = 0;
+            let hasAttValue = false;
+            let hasAbsValue = false;
+
+            months.forEach((m, i) => {
+              const attVal = state.attendance.att[i];
+              const absVal = state.attendance.abs[i];
+              const disabled = isAfterCertMonth(m);
+              const attCell = document.getElementById(`view-att-${m}`);
+              const absCell = document.getElementById(`view-abs-${m}`);
+
+              attCell.classList.toggle("attendance-disabled-cell", disabled);
+              absCell.classList.toggle("attendance-disabled-cell", disabled);
+
+              if (disabled) {
+                attCell.innerText = "";
+                absCell.innerText = "";
+                return;
+              }
+
+              attCell.innerText = attVal;
+              absCell.innerText = absVal;
+
+              if (attVal !== "") {
+                attTotal += Number(attVal) || 0;
+                hasAttValue = true;
+              }
+              if (absVal !== "") {
+                absTotal += Number(absVal) || 0;
+                hasAbsValue = true;
+              }
+            });
+
+            // Update calculated table totals
+            document.getElementById("view-att-total").innerText = hasAttValue
+              ? attTotal
+              : "";
+            document.getElementById("view-abs-total").innerText = hasAbsValue
+              ? absTotal
+              : "";
+
+            // Badges logic
+            const sportsEl = document.getElementById("view-sports-badge");
+            if (state.sportsStatus === "加入") {
+              sportsEl.innerText = "（　加　入　）";
+            } else if (state.sportsStatus === "非加入") {
+              sportsEl.innerText = "（ 非 加 入 ）";
+            } else {
+              sportsEl.innerText = "（　　　　　）";
             }
 
-            function toggleTransferContainer() {
-                const el = document.getElementById('transfer-inputs-container');
-                if (state.showTransferSection) {
-                    el.classList.remove('hidden');
-                } else {
-                    el.classList.add('hidden');
-                }
+            const aidEl = document.getElementById("view-aid-badge");
+            if (state.aidStatus === "教育扶助受給中") {
+              aidEl.innerText = "（ 教育扶助受給中 ）";
+            } else if (state.aidStatus === "就学援助受給中") {
+              aidEl.innerText = "（ 就学援助受給中 ）";
+            } else if (state.aidStatus === "いずれも未受給") {
+              aidEl.innerText = "（ いずれも未受給 ）";
+            } else {
+              aidEl.innerText = "（　　　　　　　　 ）";
             }
+          } else {
+            transferView.style.display = "none";
+          }
 
-            // Setup input events dynamically (avoid inline handlers to stop global pollution)
-            function setupEventListeners() {
-                const inputs = [
-                    'cert-year', 'cert-month', 'cert-day', 'student-grade', 'enroll-status',
-                    'until-year', 'until-month', 'until-day', 'student-name', 'guardian-name',
-                    'birth-era', 'birth-year', 'birth-month', 'birth-day', 'show-transfer-section',
-                    'sports-status', 'aid-status', 'school-name', 'school-address', 'school-phone',
-                    'school-fax', 'principal-name'
-                ];
-                
-                inputs.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) {
-                        el.addEventListener('input', () => {
-                            syncFormToState();
-                            toggleEnrollUntilContainer();
-                            toggleTransferContainer();
-                            updatePreview();
-                        });
-                        el.addEventListener('change', () => {
-                            syncFormToState();
-                            toggleEnrollUntilContainer();
-                            toggleTransferContainer();
-                            updatePreview();
-                        });
-                    }
-                });
+          // Official Signature footer
+          document.getElementById("view-cert-issue-date").innerText =
+            `令和 ${state.certYear} 年 ${state.certMonth} 月 ${state.certDay} 日`;
+          document.getElementById("view-school-address").innerText =
+            state.schoolAddress;
+          document.getElementById("view-school-phone").innerText =
+            state.schoolPhone;
+          document.getElementById("view-school-fax").innerText =
+            state.schoolFax;
+          document.getElementById("view-school-name").innerText =
+            state.schoolName.replace("福岡市立", "");
+          document.getElementById("view-principal-name").innerText =
+            state.principalName;
 
-                // Attach attendance listeners
-                const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
-                months.forEach(m => {
-                    ['att', 'abs'].forEach(type => {
-                        const el = document.getElementById(`${type}-${m}`);
-                        if (el) {
-                            el.addEventListener('input', () => {
-                                syncFormToState();
-                                updatePreview();
-                            });
-                        }
-                    });
-                });
+          // Adjust auto spacing parameters dynamically
+          autoAdjustDensity();
+        }
 
-                // Preset selector handler
-                document.getElementById('school-preset-select').addEventListener('change', (e) => {
-                    const val = e.target.value;
-                    if (val !== 'custom') {
-                        const targetSch = SCHOOL_DATABASE.find(x => x.id === val);
-                        if (targetSch) {
-                            state.schoolPreset = val;
-                            state.schoolName = `福岡市立${targetSch.name}`;
-                            state.schoolAddress = targetSch.address;
-                            state.schoolPhone = targetSch.phone;
-                            state.schoolFax = targetSch.fax;
-                            syncStateToForm();
-                            updatePreview();
-                            setSchoolInfoEditing(false);
-                        }
-                    } else {
-                        state.schoolPreset = 'custom';
-                        syncFormToState();
-                        updatePreview();
-                    }
-                });
+        // Auto-Density Engine: Dynamically checks height boundary metrics and adjust spacing accordingly
+        function autoAdjustDensity() {
+          const page = document.getElementById("school-cert-page");
+          const inner = page.querySelector(".page-inner");
+          if (!inner) return;
 
-                document.getElementById('btn-load-school-csv').addEventListener('click', chooseSchoolCsvFile);
-                document.getElementById('btn-edit-school-info').addEventListener('click', () => {
-                    setSchoolInfoEditing(true);
-                });
-                document.getElementById('btn-save-school-info').addEventListener('click', saveSchoolInfoToCsv);
+          // Set measuring parameters safely
+          const safeH = page.clientHeight - 80;
 
-                // Zoom control attachments
-                document.getElementById('btn-zoom-in').addEventListener('click', () => {
-                    adjustZoom(currentScale + 0.1);
-                });
-                document.getElementById('btn-zoom-out').addEventListener('click', () => {
-                    adjustZoom(currentScale - 0.1);
-                });
-                document.getElementById('btn-zoom-fit').addEventListener('click', () => {
-                    adjustZoomToFit();
-                });
+          // Clear constraints temporarily for correct offset height calculation (Avoiding h-full measurement bug)
+          inner.style.height = "auto";
+          inner.style.transform = "";
+          inner.style.width = "";
+          inner.style.marginLeft = "";
 
-                // Document/Export features
-                document.getElementById('btn-download').addEventListener('click', downloadPDF);
-                document.getElementById('btn-copy-code').addEventListener('click', copyCleanSourceToClipboard);
-                document.getElementById('btn-open-newtab').addEventListener('click', openCleanSourceInNewTab);
+          // Restore default styles inside layout
+          inner.style.fontSize = "";
+          inner.style.lineHeight = "";
+          inner
+            .querySelectorAll(".density-gap")
+            .forEach((el) => (el.style.gap = ""));
+          inner
+            .querySelectorAll(".density-pad")
+            .forEach((el) => (el.style.padding = ""));
+          inner
+            .querySelectorAll(":scope > *")
+            .forEach((el) => (el.style.marginBottom = ""));
 
-                // Reconstructive Upload handlers
-                document.getElementById('btn-restore-upload').addEventListener('change', handleRestoreUpload);
+          // Stage 1: Step-by-step sizing reduction fitting loop (Limit range: 1.0 down to 0.7)
+          let scaleVal = 1.0;
+          const minScale = 0.72;
+          while (inner.scrollHeight > safeH && scaleVal > minScale) {
+            scaleVal -= 0.02;
+            inner.style.fontSize = `${scaleVal}em`;
+            inner.style.lineHeight = `${Math.max(1.2, 1.65 * scaleVal)}`;
+          }
 
-                window.addEventListener('resize', () => {
-                    adjustZoomToFit();
-                    autoAdjustDensity();
-                });
+          // Stage 2: Forced matrix scale-down scaling fallback if content is still breaking the box bounds
+          if (inner.scrollHeight > safeH) {
+            const finalScale = safeH / inner.scrollHeight;
+            inner.style.transform = `scale(${finalScale})`;
+            inner.style.transformOrigin = "top center";
+            inner.style.width = `${100 / finalScale}%`;
+            inner.style.marginLeft = `${(100 - 100 / finalScale) / 2}%`; // Counteract offcentering scaling shift
+          }
 
-                // Font loading complete re-fitting triggers
-                document.fonts.ready.then(() => {
-                    autoAdjustDensity();
-                });
+          // Stage 3: Auto content spacing dispersal for sparse layouts
+          if (inner.scrollHeight < safeH * 0.85) {
+            const childSections = Array.from(
+              inner.querySelectorAll(":scope > *"),
+            ).filter(
+              (el) =>
+                !el.hasAttribute("data-page-footer") &&
+                el.style.position !== "absolute" &&
+                !el.classList.contains("flex-grow"),
+            );
+
+            if (childSections.length > 1) {
+              const extraSpacing =
+                (safeH - inner.scrollHeight) / childSections.length;
+              const addedMb = Math.min(32, Math.max(0, extraSpacing));
+              childSections.forEach((s) => {
+                s.style.marginBottom = `${addedMb}px`;
+              });
             }
+          }
 
-            // High Precision Scale & Fit algorithms
-            function adjustZoom(target) {
-                currentScale = Math.max(0.2, Math.min(2.5, target));
-                updateZoomUI();
-            }
+          // Restore measuring state
+          inner.style.height = "";
+        }
 
-            function adjustZoomToFit() {
-                const pane = document.getElementById('right-pane');
-                if (!pane) return;
-                // Leave proper visual padding borders
-                const paddingSpace = 40;
-                const availableW = pane.clientWidth - paddingSpace;
-                const availableH = pane.clientHeight - paddingSpace;
-                const scaleW = availableW / currentPageSize.w;
-                const scaleH = availableH / currentPageSize.h;
-                
-                // Match the minimum limiting axis scale
-                const finalScale = Math.min(scaleW, scaleH, 1.0);
-                currentScale = Math.floor(finalScale * 100) / 100; // Keep scale values readable
-                updateZoomUI();
-            }
+        // Multi-mode Source Injection Synthesizer
+        function generateCleanSource() {
+          // Deep clone current active document context
+          const dc = document.documentElement.cloneNode(true);
 
-            function updateZoomUI() {
-                const page = document.getElementById('school-cert-page');
-                const container = page.closest('.capture-area-container');
-                
-                // Strict rule compliance: Use scale scaling and force update wrapper box bounds simultaneously
-                page.style.transform = `scale(${currentScale})`;
-                if (container) {
-                    container.style.width = `${currentPageSize.w * currentScale}px`;
-                    container.style.height = `${currentPageSize.h * currentScale}px`;
-                }
+          // Clear UI states to match original clean code
+          const db = dc.querySelector("#downloadBtnText");
+          if (db) db.innerText = "PDF保存";
+          const bd = dc.querySelector("#btn-download");
+          if (bd) bd.disabled = false;
+          const n = dc.querySelector("#notification-bar");
+          if (n) n.classList.add("hidden");
+          const ov = dc.querySelector("#pdf-overlay");
+          if (ov) ov.classList.remove("active");
 
-                document.getElementById('zoom-level-text').innerText = `${Math.round(currentScale * 100)}%`;
-            }
+          // Clean inline attributes added dynamically during previews & density loops
+          dc.querySelectorAll(
+            ".pdf-page, .page-inner, .capture-area-container",
+          ).forEach((el) => {
+            el.removeAttribute("style");
+          });
 
-            // Realtime rendering view syncer
-            function updatePreview() {
-                // Cert Date
-                const certDateStr = `令和 ${state.certYear} 年 ${state.certMonth} 月 ${state.certDay} 日`;
-                const viewCertDateParts = document.getElementById('view-cert-date-parts');
-                viewCertDateParts.innerText = `${state.certYear} 年 ${state.certMonth} 月 ${state.certDay} 日`;
+          // Reconvert SVG Icons back to semantic Lucide i tags for self-instantiation on load
+          dc.querySelectorAll("svg[data-lucide]").forEach((svg) => {
+            const iconName = svg.getAttribute("data-lucide");
+            const classes = svg.getAttribute("class");
+            const iTag = document.createElement("i");
+            iTag.setAttribute("data-lucide", iconName);
+            iTag.setAttribute("class", classes);
+            svg.replaceWith(iTag);
+          });
 
-                const viewStatusAddon = document.getElementById('view-status-addon');
-                const viewStatusVerb = document.getElementById('view-status-verb');
-                if (state.enrollStatus === 'current') {
-                    viewStatusAddon.innerText = '現在';
-                    viewStatusVerb.innerText = 'いる';
-                } else {
-                    viewStatusAddon.innerText = `まで`;
-                    viewStatusVerb.innerText = 'いた';
-                }
+          // Re-inject the serialized state into the program code template
+          let htmlSource = "<!DOCTYPE html>\n" + dc.outerHTML;
+          const stateDataJson = JSON.stringify(state, null, 2);
 
-                // Grade display
-                document.getElementById('view-grade').innerText = `第 ${state.studentGrade} `;
+          // Inject utilizing highly robust Regex to correctly overwrite old injections
+          const injectReg =
+            /\/\*\s*__INJECTED_DATA_START__\s*\*\/[\s\S]*?\/\*\s*__INJECTED_DATA_END__\s*\*\//;
+          const newPayloadString = `/* __INJECTED_DATA_START__ */\n        const __EMBEDDED_DATA__ = ${stateDataJson};\n        /* __INJECTED_DATA_END__ */`;
 
-                // Student names
-                document.getElementById('view-student-name').innerText = state.studentName;
-                document.getElementById('view-guardian-name').innerText = state.guardianName || "　　　　　　";
+          htmlSource = htmlSource.replace(injectReg, newPayloadString);
+          return htmlSource;
+        }
 
-                // Birthday computation
-                const birthStr = `${state.birthEra} ${state.birthYear} 年 ${state.birthMonth} 月 ${state.birthDay} 日生`;
-                document.getElementById('view-student-birth').innerText = birthStr;
+        // PDF Generator & Metadata Embedder Action
+        async function downloadPDF() {
+          const btn = document.getElementById("btn-download");
+          const btnText = document.getElementById("downloadBtnText");
+          const overlay = document.getElementById("pdf-overlay");
 
-                // Toggling of transfer section preview
-                const transferView = document.getElementById('view-transfer-section');
-                if (state.showTransferSection) {
-                    transferView.style.display = 'block';
-                    
-                    // Sync attendance monthly grids
-                    const months = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
-                    let attTotal = 0;
-                    let absTotal = 0;
-                    
-                    months.forEach((m, i) => {
-                        const attVal = state.attendance.att[i];
-                        const absVal = state.attendance.abs[i];
-                        
-                        document.getElementById(`view-att-${m}`).innerText = attVal;
-                        document.getElementById(`view-abs-${m}`).innerText = absVal;
-                        
-                        attTotal += attVal;
-                        absTotal += absVal;
-                    });
+          btn.disabled = true;
+          btnText.innerText = "生成中...";
+          overlay.classList.add("active");
 
-                    // Update calculated table totals
-                    document.getElementById('view-att-total').innerText = attTotal;
-                    document.getElementById('view-abs-total').innerText = absTotal;
+          try {
+            // Preflight checks
+            await document.fonts.ready;
 
-                    // Badges logic
-                    const sportsEl = document.getElementById('view-sports-badge');
-                    if (state.sportsStatus === '加入') {
-                        sportsEl.innerText = '（　加　入　）';
-                    } else if (state.sportsStatus === '非加入') {
-                        sportsEl.innerText = '（ 非 加 入 ）';
-                    } else {
-                        sportsEl.innerText = '（　　　　　）';
-                    }
+            const page = document.getElementById("school-cert-page");
 
-                    const aidEl = document.getElementById('view-aid-badge');
-                    if (state.aidStatus === '教育扶助受給中') {
-                        aidEl.innerText = '（ 教育扶助受給中 ）';
-                    } else if (state.aidStatus === '就学援助受給中') {
-                        aidEl.innerText = '（ 就学援助受給中 ）';
-                    } else if (state.aidStatus === 'いずれも未受給') {
-                        aidEl.innerText = '（ いずれも未受給 ）';
-                    } else {
-                        aidEl.innerText = '（　　　　　　　　 ）';
-                    }
+            // Enforce temporary equal pixel ratio rendering mode scale limits
+            const origTransform = page.style.transform;
+            page.style.transform = "none";
 
-                } else {
-                    transferView.style.display = 'none';
-                }
+            // Utilize micro-timing RAF offsets for rendering engines to finish calculations
+            await new Promise((res) =>
+              requestAnimationFrame(() => requestAnimationFrame(res)),
+            );
 
-                // Official Signature footer
-                document.getElementById('view-cert-issue-date').innerText = `令和 ${state.certYear} 年 ${state.certMonth} 月 ${state.certDay} 日`;
-                document.getElementById('view-school-address').innerText = state.schoolAddress;
-                document.getElementById('view-school-phone').innerText = state.schoolPhone;
-                document.getElementById('view-school-fax').innerText = state.schoolFax;
-                document.getElementById('view-school-name').innerText = state.schoolName.replace('福岡市立', '');
-                document.getElementById('view-principal-name').innerText = state.principalName;
+            const imgDataUrl = await htmlToImage.toPng(page, {
+              width: currentPageSize.w,
+              height: currentPageSize.h,
+              style: {
+                transform: "none",
+                left: "0",
+                top: "0",
+              },
+              pixelRatio: 3,
+              quality: 0.95,
+              skipFonts: false,
+              preferredFontFormat: "woff2",
+            });
 
-                // Adjust auto spacing parameters dynamically
-                autoAdjustDensity();
-            }
+            // Restore scale state
+            page.style.transform = origTransform;
 
-            // Auto-Density Engine: Dynamically checks height boundary metrics and adjust spacing accordingly
-            function autoAdjustDensity() {
-                const page = document.getElementById('school-cert-page');
-                const inner = page.querySelector('.page-inner');
-                if (!inner) return;
+            // Initialize jsPDF A4 Document Context
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+              orientation: "portrait",
+              unit: "mm",
+              format: "a4",
+            });
 
-                // Set measuring parameters safely
-                const safeH = page.clientHeight - 80;
+            pdf.addImage(
+              imgDataUrl,
+              "PNG",
+              0,
+              0,
+              currentPageSize.mmW,
+              currentPageSize.mmH,
+              "",
+              "FAST",
+            );
 
-                // Clear constraints temporarily for correct offset height calculation (Avoiding h-full measurement bug)
-                inner.style.height = 'auto';
-                inner.style.transform = '';
-                inner.style.width = '';
-                inner.style.marginLeft = '';
+            // Embed clean code directly into PDF properties inside standard tags
+            const cleanAppCode = generateCleanSource();
+            const encodedAppCode = safeBase64Encode(cleanAppCode);
+            pdf.setProperties({
+              author: "まじん式PDF Engine",
+              subject: `___MAJIN_PDF_DATA___:${encodedAppCode}`,
+              title: `在学証明書_${state.studentName.replace(/\s+/g, "")}`,
+            });
 
-                // Restore default styles inside layout
-                inner.style.fontSize = '';
-                inner.style.lineHeight = '';
-                inner.querySelectorAll('.density-gap').forEach(el => el.style.gap = '');
-                inner.querySelectorAll('.density-pad').forEach(el => el.style.padding = '');
-                inner.querySelectorAll(':scope > *').forEach(el => el.style.marginBottom = '');
+            // Save output
+            pdf.save(`在学証明書_${state.studentName.replace(/\s+/g, "")}.pdf`);
+            showNotification("PDFの保存に成功しました！");
+          } catch (err) {
+            console.error("PDF generation failed", err);
+            showNotification("PDFの生成中にエラーが発生しました", true);
+          } finally {
+            btn.disabled = false;
+            btnText.innerText = "PDF保存";
+            overlay.classList.remove("active");
+          }
+        }
 
-                // Stage 1: Step-by-step sizing reduction fitting loop (Limit range: 1.0 down to 0.7)
-                let scaleVal = 1.0;
-                const minScale = 0.72;
-                while (inner.scrollHeight > safeH && scaleVal > minScale) {
-                    scaleVal -= 0.02;
-                    inner.style.fontSize = `${scaleVal}em`;
-                    inner.style.lineHeight = `${Math.max(1.2, 1.65 * scaleVal)}`;
-                }
+        // Clipboard exporter with legacy fallback structure
+        function copyCleanSourceToClipboard() {
+          const cleanCode = generateCleanSource();
 
-                // Stage 2: Forced matrix scale-down scaling fallback if content is still breaking the box bounds
-                if (inner.scrollHeight > safeH) {
-                    const finalScale = safeH / inner.scrollHeight;
-                    inner.style.transform = `scale(${finalScale})`;
-                    inner.style.transformOrigin = 'top center';
-                    inner.style.width = `${100 / finalScale}%`;
-                    inner.style.marginLeft = `${(100 - 100 / finalScale) / 2}%`; // Counteract offcentering scaling shift
-                }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard
+              .writeText(cleanCode)
+              .then(() => {
+                showNotification(
+                  "最新コードをクリップボードにコピーしました！",
+                );
+              })
+              .catch((err) => {
+                console.error("Clipboard API write failure", err);
+                fallbackCopy(cleanCode);
+              });
+          } else {
+            fallbackCopy(cleanCode);
+          }
+        }
 
-                // Stage 3: Auto content spacing dispersal for sparse layouts
-                if (inner.scrollHeight < safeH * 0.85) {
-                    const childSections = Array.from(inner.querySelectorAll(':scope > *'))
-                        .filter(el => !el.hasAttribute('data-page-footer') && el.style.position !== 'absolute' && !el.classList.contains('flex-grow'));
-                    
-                    if (childSections.length > 1) {
-                        const extraSpacing = (safeH - inner.scrollHeight) / childSections.length;
-                        const addedMb = Math.min(32, Math.max(0, extraSpacing));
-                        childSections.forEach(s => {
-                            s.style.marginBottom = `${addedMb}px`;
-                        });
-                    }
-                }
+        function fallbackCopy(text) {
+          const dummy = document.createElement("textarea");
+          document.body.appendChild(dummy);
+          dummy.value = text;
+          dummy.select();
+          try {
+            document.execCommand("copy");
+            showNotification("最新コードをコピーしました（代替方式）");
+          } catch (e) {
+            showNotification("コピー処理に失敗しました", true);
+          }
+          document.body.removeChild(dummy);
+        }
 
-                // Restore measuring state
-                inner.style.height = '';
-            }
+        // Open program inside sandboxed Blob window
+        function openCleanSourceInNewTab() {
+          const code = generateCleanSource();
+          const blob = new Blob([code], { type: "text/html;charset=utf-8" });
+          const blobUrl = URL.createObjectURL(blob);
 
-            // Multi-mode Source Injection Synthesizer
-            function generateCleanSource() {
-                // Deep clone current active document context
-                const dc = document.documentElement.cloneNode(true);
-                
-                // Clear UI states to match original clean code
-                const db = dc.querySelector('#downloadBtnText'); if (db) db.innerText = 'PDF保存';
-                const bd = dc.querySelector('#btn-download'); if (bd) bd.disabled = false;
-                const n = dc.querySelector('#notification-bar'); if (n) n.classList.add('hidden');
-                const ov = dc.querySelector('#pdf-overlay'); if (ov) ov.classList.remove('active');
+          const newTab = window.open(blobUrl, "_blank");
+          if (!newTab) {
+            // Suppress alerts to adhere to Rule #19 (Silent exit on popup blockers)
+            console.warn("Popup blocked, could not open new editor tab.");
+          }
 
-                // Clean inline attributes added dynamically during previews & density loops
-                dc.querySelectorAll('.pdf-page, .page-inner, .capture-area-container').forEach(el => {
-                    el.removeAttribute('style');
-                });
+          setTimeout(() => {
+            URL.revokeObjectURL(blobUrl);
+          }, 3000);
+        }
 
-                // Reconvert SVG Icons back to semantic Lucide i tags for self-instantiation on load
-                dc.querySelectorAll('svg[data-lucide]').forEach(svg => {
-                    const iconName = svg.getAttribute('data-lucide');
-                    const classes = svg.getAttribute('class');
-                    const iTag = document.createElement('i');
-                    iTag.setAttribute('data-lucide', iconName);
-                    iTag.setAttribute('class', classes);
-                    svg.replaceWith(iTag);
-                });
+        // Binary Search Engine for Injected Source parsing in uploaded PDFs
+        function handleRestoreUpload(e) {
+          const file = e.target.files[0];
+          if (!file) return;
 
-                // Re-inject the serialized state into the program code template
-                let htmlSource = '<!DOCTYPE html>\n' + dc.outerHTML;
-                const stateDataJson = JSON.stringify(state, null, 2);
-                
-                // Inject utilizing highly robust Regex to correctly overwrite old injections
-                const injectReg = /\/\*\s*__INJECTED_DATA_START__\s*\*\/[\s\S]*?\/\*\s*__INJECTED_DATA_END__\s*\*\//;
-                const newPayloadString = `/* __INJECTED_DATA_START__ */\n        const __EMBEDDED_DATA__ = ${stateDataJson};\n        /* __INJECTED_DATA_END__ */`;
-                
-                htmlSource = htmlSource.replace(injectReg, newPayloadString);
-                return htmlSource;
-            }
+          const reader = new FileReader();
 
-            // PDF Generator & Metadata Embedder Action
-            async function downloadPDF() {
-                const btn = document.getElementById('btn-download');
-                const btnText = document.getElementById('downloadBtnText');
-                const overlay = document.getElementById('pdf-overlay');
-                
-                btn.disabled = true;
-                btnText.innerText = '生成中...';
-                overlay.classList.add('active');
+          if (file.name.endsWith(".pdf")) {
+            reader.onload = function (evt) {
+              const buffer = evt.target.result;
+              const textDecoder = new TextDecoder("utf-8");
+              const arr = new Uint8Array(buffer);
 
+              // Convert binary stream safely to text chunks to look for injected headers
+              const rawStr = textDecoder.decode(
+                arr.subarray(0, Math.min(arr.length, 1024 * 1024 * 5)),
+              ); // Read first 5MB
+              const matchMarker = rawStr.indexOf("___MAJIN_PDF_DATA___:");
+
+              if (matchMarker !== -1) {
                 try {
-                    // Preflight checks
-                    await document.fonts.ready;
-                    
-                    const page = document.getElementById('school-cert-page');
-                    
-                    // Enforce temporary equal pixel ratio rendering mode scale limits
-                    const origTransform = page.style.transform;
-                    page.style.transform = 'none';
+                  const start = matchMarker + "___MAJIN_PDF_DATA___:".length;
+                  // Find end of parenthesis bounding the PDF Subject block
+                  let end = rawStr.indexOf(")", start);
+                  if (end === -1) {
+                    end = rawStr.indexOf("\\)", start);
+                  }
 
-                    // Utilize micro-timing RAF offsets for rendering engines to finish calculations
-                    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+                  const b64 = rawStr.slice(start, end).trim();
+                  const reconstructedSource = safeBase64Decode(b64);
 
-                    const imgDataUrl = await htmlToImage.toPng(page, {
-                        width: currentPageSize.w,
-                        height: currentPageSize.h,
-                        style: {
-                            transform: 'none',
-                            left: '0',
-                            top: '0'
-                        },
-                        pixelRatio: 3,
-                        quality: 0.95,
-                        skipFonts: false,
-                        preferredFontFormat: 'woff2'
+                  // Extract embedded state variables
+                  const stateSearch = reconstructedSource.match(
+                    /\/\*\s*__INJECTED_DATA_START__\s*\*\/[\s\S]*?const\s+__EMBEDDED_DATA__\s*=\s*([\s\S]*?);\s*\/\*\s*__INJECTED_DATA_END__\s*\*\//,
+                  );
+                  if (stateSearch && stateSearch[1]) {
+                    const parsedState = JSON.parse(stateSearch[1]);
+                    sessionStorage.setItem(
+                      "__MAJIN_PDF_RESTORE__",
+                      JSON.stringify(parsedState),
+                    );
+
+                    // Open in separate blob to trigger full restart cycle cleanly
+                    const blob = new Blob([reconstructedSource], {
+                      type: "text/html;charset=utf-8",
                     });
-
-                    // Restore scale state
-                    page.style.transform = origTransform;
-
-                    // Initialize jsPDF A4 Document Context
-                    const { jsPDF } = window.jspdf;
-                    const pdf = new jsPDF({
-                        orientation: 'portrait',
-                        unit: 'mm',
-                        format: 'a4'
-                    });
-
-                    pdf.addImage(imgDataUrl, 'PNG', 0, 0, currentPageSize.mmW, currentPageSize.mmH, '', 'FAST');
-
-                    // Embed clean code directly into PDF properties inside standard tags
-                    const cleanAppCode = generateCleanSource();
-                    const encodedAppCode = safeBase64Encode(cleanAppCode);
-                    pdf.setProperties({
-                        author: 'まじん式PDF Engine',
-                        subject: `___MAJIN_PDF_DATA___:${encodedAppCode}`,
-                        title: `在学証明書_${state.studentName.replace(/\s+/g, '')}`
-                    });
-
-                    // Save output
-                    pdf.save(`在学証明書_${state.studentName.replace(/\s+/g, '')}.pdf`);
-                    showNotification("PDFの保存に成功しました！");
-
+                    const url = URL.createObjectURL(blob);
+                    const win = window.open(url, "_blank");
+                    if (win) {
+                      showNotification(
+                        "PDFからアプリ環境を別タブに復元しました！",
+                      );
+                    } else {
+                      // Auto-load inline if popup is disabled
+                      state = { ...state, ...parsedState };
+                      syncStateToForm();
+                      updatePreview();
+                      showNotification(
+                        "ポップアップがブロックされたため、同一タブで復元しました",
+                      );
+                    }
+                  } else {
+                    showNotification(
+                      "PDF内のデータが不正なフォーマットです",
+                      true,
+                    );
+                  }
                 } catch (err) {
-                    console.error("PDF generation failed", err);
-                    showNotification("PDFの生成中にエラーが発生しました", true);
-                } finally {
-                    btn.disabled = false;
-                    btnText.innerText = 'PDF保存';
-                    overlay.classList.remove('active');
+                  console.error("PDF data parsing failure", err);
+                  showNotification("PDF解析に失敗しました", true);
                 }
-            }
-
-            // Clipboard exporter with legacy fallback structure
-            function copyCleanSourceToClipboard() {
-                const cleanCode = generateCleanSource();
-                
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(cleanCode).then(() => {
-                        showNotification("最新コードをクリップボードにコピーしました！");
-                    }).catch(err => {
-                        console.error("Clipboard API write failure", err);
-                        fallbackCopy(cleanCode);
-                    });
-                } else {
-                    fallbackCopy(cleanCode);
-                }
-            }
-
-            function fallbackCopy(text) {
-                const dummy = document.createElement("textarea");
-                document.body.appendChild(dummy);
-                dummy.value = text;
-                dummy.select();
-                try {
-                    document.execCommand("copy");
-                    showNotification("最新コードをコピーしました（代替方式）");
-                } catch (e) {
-                    showNotification("コピー処理に失敗しました", true);
-                }
-                document.body.removeChild(dummy);
-            }
-
-            // Open program inside sandboxed Blob window
-            function openCleanSourceInNewTab() {
-                const code = generateCleanSource();
-                const blob = new Blob([code], { type: 'text/html;charset=utf-8' });
-                const blobUrl = URL.createObjectURL(blob);
-                
-                const newTab = window.open(blobUrl, '_blank');
-                if (!newTab) {
-                    // Suppress alerts to adhere to Rule #19 (Silent exit on popup blockers)
-                    console.warn("Popup blocked, could not open new editor tab.");
-                }
-
-                setTimeout(() => {
-                    URL.revokeObjectURL(blobUrl);
-                }, 3000);
-            }
-
-            // Binary Search Engine for Injected Source parsing in uploaded PDFs
-            function handleRestoreUpload(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-
-                if (file.name.endsWith('.pdf')) {
-                    reader.onload = function(evt) {
-                        const buffer = evt.target.result;
-                        const textDecoder = new TextDecoder('utf-8');
-                        const arr = new Uint8Array(buffer);
-                        
-                        // Convert binary stream safely to text chunks to look for injected headers
-                        const rawStr = textDecoder.decode(arr.subarray(0, Math.min(arr.length, 1024 * 1024 * 5))); // Read first 5MB
-                        const matchMarker = rawStr.indexOf('___MAJIN_PDF_DATA___:');
-                        
-                        if (matchMarker !== -1) {
-                            try {
-                                const start = matchMarker + '___MAJIN_PDF_DATA___:'.length;
-                                // Find end of parenthesis bounding the PDF Subject block
-                                let end = rawStr.indexOf(')', start);
-                                if (end === -1) {
-                                    end = rawStr.indexOf('\\)', start);
-                                }
-                                
-                                const b64 = rawStr.slice(start, end).trim();
-                                const reconstructedSource = safeBase64Decode(b64);
-                                
-                                // Extract embedded state variables
-                                const stateSearch = reconstructedSource.match(/\/\*\s*__INJECTED_DATA_START__\s*\*\/[\s\S]*?const\s+__EMBEDDED_DATA__\s*=\s*([\s\S]*?);\s*\/\*\s*__INJECTED_DATA_END__\s*\*\//);
-                                if (stateSearch && stateSearch[1]) {
-                                    const parsedState = JSON.parse(stateSearch[1]);
-                                    sessionStorage.setItem('__MAJIN_PDF_RESTORE__', JSON.stringify(parsedState));
-                                    
-                                    // Open in separate blob to trigger full restart cycle cleanly
-                                    const blob = new Blob([reconstructedSource], { type: 'text/html;charset=utf-8' });
-                                    const url = URL.createObjectURL(blob);
-                                    const win = window.open(url, '_blank');
-                                    if (win) {
-                                        showNotification("PDFからアプリ環境を別タブに復元しました！");
-                                    } else {
-                                        // Auto-load inline if popup is disabled
-                                        state = { ...state, ...parsedState };
-                                        syncStateToForm();
-                                        updatePreview();
-                                        showNotification("ポップアップがブロックされたため、同一タブで復元しました");
-                                    }
-                                } else {
-                                    showNotification("PDF内のデータが不正なフォーマットです", true);
-                                }
-                            } catch (err) {
-                                console.error("PDF data parsing failure", err);
-                                showNotification("PDF解析に失敗しました", true);
-                            }
-                        } else {
-                            showNotification("選択されたPDFには復元データが埋め込まれていません", true);
-                        }
-                    };
-                    reader.readAsArrayBuffer(file);
-                } else if (file.name.endsWith('.html')) {
-                    reader.onload = function(evt) {
-                        const htmlText = evt.target.result;
-                        const stateSearch = htmlText.match(/\/\*\s*__INJECTED_DATA_START__\s*\*\/[\s\S]*?const\s+__EMBEDDED_DATA__\s*=\s*([\s\S]*?);\s*\/\*\s*__INJECTED_DATA_END__\s*\*\//);
-                        if (stateSearch && stateSearch[1]) {
-                            try {
-                                const parsedState = JSON.parse(stateSearch[1]);
-                                state = { ...state, ...parsedState };
-                                syncStateToForm();
-                                updatePreview();
-                                showNotification("HTMLコードファイルから状態を復元しました！");
-                            } catch (err) {
-                                showNotification("HTML内のデータの読み込みに失敗しました", true);
-                            }
-                        } else {
-                            showNotification("このHTMLファイルには復元データがありません", true);
-                        }
-                    };
-                    reader.readAsText(file);
-                }
-                
-                // Clear target value to enable uploading the same file again
-                e.target.value = '';
-            }
-
-            // Dynamic User Notice Display
-            function showNotification(msg, isError = false) {
-                const bar = document.getElementById('notification-bar');
-                const text = document.getElementById('notification-message');
-                text.innerText = msg;
-                
-                if (isError) {
-                    bar.classList.add('bg-rose-50', 'text-rose-800', 'border-rose-200');
-                    bar.classList.remove('bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
-                } else {
-                    bar.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
-                    bar.classList.remove('bg-rose-50', 'text-rose-800', 'border-rose-200');
-                }
-
-                bar.classList.remove('hidden');
-                setTimeout(() => {
-                    bar.classList.add('hidden');
-                }, 4000);
-            }
-
-            // Launch Engine on complete DOM availability
-            window.onload = function() {
-                init();
+              } else {
+                showNotification(
+                  "選択されたPDFには復元データが埋め込まれていません",
+                  true,
+                );
+              }
             };
-        })();
+            reader.readAsArrayBuffer(file);
+          } else if (file.name.endsWith(".html")) {
+            reader.onload = function (evt) {
+              const htmlText = evt.target.result;
+              const stateSearch = htmlText.match(
+                /\/\*\s*__INJECTED_DATA_START__\s*\*\/[\s\S]*?const\s+__EMBEDDED_DATA__\s*=\s*([\s\S]*?);\s*\/\*\s*__INJECTED_DATA_END__\s*\*\//,
+              );
+              if (stateSearch && stateSearch[1]) {
+                try {
+                  const parsedState = JSON.parse(stateSearch[1]);
+                  state = { ...state, ...parsedState };
+                  syncStateToForm();
+                  updatePreview();
+                  showNotification(
+                    "HTMLコードファイルから状態を復元しました！",
+                  );
+                } catch (err) {
+                  showNotification(
+                    "HTML内のデータの読み込みに失敗しました",
+                    true,
+                  );
+                }
+              } else {
+                showNotification(
+                  "このHTMLファイルには復元データがありません",
+                  true,
+                );
+              }
+            };
+            reader.readAsText(file);
+          }
+
+          // Clear target value to enable uploading the same file again
+          e.target.value = "";
+        }
+
+        // Dynamic User Notice Display
+        function showNotification(msg, isError = false) {
+          const bar = document.getElementById("notification-bar");
+          const text = document.getElementById("notification-message");
+          text.innerText = msg;
+
+          if (isError) {
+            bar.classList.add("bg-rose-50", "text-rose-800", "border-rose-200");
+            bar.classList.remove(
+              "bg-emerald-50",
+              "text-emerald-800",
+              "border-emerald-200",
+            );
+          } else {
+            bar.classList.add(
+              "bg-emerald-50",
+              "text-emerald-800",
+              "border-emerald-200",
+            );
+            bar.classList.remove(
+              "bg-rose-50",
+              "text-rose-800",
+              "border-rose-200",
+            );
+          }
+
+          bar.classList.remove("hidden");
+          setTimeout(() => {
+            bar.classList.add("hidden");
+          }, 4000);
+        }
+
+        // Launch Engine on complete DOM availability
+        window.onload = function () {
+          init();
+        };
+      })();
     </script>
-</body>
+  </body>
 </html>
