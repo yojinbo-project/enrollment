@@ -786,7 +786,6 @@
               </div>
             </div>
           </div>
-
         </div>
       </section>
 
@@ -1384,14 +1383,14 @@
             .map((line) => parseCsvLine(line))
             .filter((cols) => cols.some((value) => value.trim() !== ""))
             .filter((cols) => cols[0] && cols[1])
-              .map((cols) => ({
-                id: cols[0].trim(),
-                name: cols[1].trim(),
-                address: (cols[2] || "").trim(),
-                phone: (cols[3] || "").trim(),
-                fax: (cols[4] || "").trim(),
-                principal: (cols[5] || "").trim(),
-              }));
+            .map((cols) => ({
+              id: cols[0].trim(),
+              name: cols[1].trim(),
+              address: (cols[2] || "").trim(),
+              phone: (cols[3] || "").trim(),
+              fax: (cols[4] || "").trim(),
+              principal: (cols[5] || "").trim(),
+            }));
         }
 
         function csvEscape(value) {
@@ -1402,12 +1401,12 @@
         function buildSchoolCsv() {
           const rows = SCHOOL_DATABASE.map((sch) => [
             sch.id,
-              sch.name,
-              sch.address,
-              sch.phone,
-              sch.fax,
-              sch.principal || "",
-            ]);
+            sch.name,
+            sch.address,
+            sch.phone,
+            sch.fax,
+            sch.principal || "",
+          ]);
           return (
             rows.map((row) => row.map(csvEscape).join(",")).join("\r\n") +
             "\r\n"
@@ -1448,16 +1447,11 @@
 
         async function requestSchoolCsvWriteHandle() {
           if (!window.showOpenFilePicker) {
-            showNotification(
-              "CSVの上書き保存には対応ブラウザが必要です",
-              true,
-            );
+            showNotification("CSVの上書き保存には対応ブラウザが必要です", true);
             return null;
           }
 
-          showNotification(
-            "変更を反映する学校情報.csvを選択してください",
-          );
+          showNotification("変更を反映する学校情報.csvを選択してください");
 
           const [handle] = await window.showOpenFilePicker({
             types: [
@@ -1998,7 +1992,7 @@
             statusVerb = "いた";
           }
 
-          viewCertificationSentence.innerText = `下記の生徒は、${certDateStr}${statusAddon}本校第 ${state.studentGrade} 学年に在学して${statusVerb}ことを証明します。`;
+          viewCertificationSentence.innerText = `下記の生徒は、${certDateStr}${statusAddon}、本校第 ${state.studentGrade} 学年に在学して${statusVerb}ことを証明します。`;
 
           // Student names
           document.getElementById("view-student-name").innerText =
